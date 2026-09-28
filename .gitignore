@@ -1,0 +1,110 @@
+# =========================
+# .NET build artifacts
+# =========================
+bin/
+obj/
+out/
+
+# =========================
+# Visual Studio
+# =========================
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# Visual Studio generated files
+Generated\ Files/
+
+# =========================
+# VS Code / Antigravity
+# =========================
+.vscode/
+.history/
+
+# =========================
+# JetBrains Rider
+# =========================
+.idea/
+*.sln.iml
+
+# =========================
+# Testing
+# =========================
+TestResults/
+*.trx
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+
+# =========================
+# NuGet
+# =========================
+*.nupkg
+*.snupkg
+packages/
+
+# Do not ignore packages.lock.json if it appears later
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
+# =========================
+# Environment / secrets
+# =========================
+.env
+.env.local
+.env.development
+.env.production
+
+# Keep example environment file
+!.env.example
+
+# ASP.NET / local secrets
+secrets.json
+appsettings.Local.json
+appsettings.*.Local.json
+
+# =========================
+# Certificates
+# =========================
+*.pfx
+*.p12
+*.key
+*.pem
+
+# =========================
+# Database/local data
+# =========================
+*.db
+*.db-shm
+*.db-wal
+
+# =========================
+# Docker local overrides
+# =========================
+docker-compose.override.yml
+
+# =========================
+# OS files
+# =========================
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.temp
+*.bak
+*.swp
+~$*
+
+*.docx
