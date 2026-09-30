@@ -29,16 +29,19 @@ Shop.OrderService   ─────────► Browser              SignalR 
 
 Each service owns its own PostgreSQL database. Direct cross-service table access is forbidden.
 
-| Service | Database |
-|---|---|
-| `Shop.IdentityService` | `shop_identity` |
-| `Shop.CatalogService` | `shop_catalog` |
-| `Shop.OrderService` | `shop_orders` |
+| Service | DbContext | Database |
+|---|---|---|
+| `Shop.IdentityService` | `IdentityDbContext` | `shop_identity` |
+| `Shop.CatalogService` | `CatalogDbContext` | `shop_catalog` |
+| `Shop.OrderService` | `OrderDbContext` | `shop_orders` |
+
+**Rule**: A service must not query another service's database directly.
 
 ## Architecture Rules
 
 - Each service is the sole owner of its data.
-- Direct access to another service's tables is prohibited.
+- A service must not query another service's database directly.
+- Each service has its own dedicated DbContext; no shared DbContext exists.
 - The central business process is order processing.
 - `Shop.OrderService` uses `Shop.CatalogService` via gRPC for stock reservation.
 - No direct project references between `IdentityService`, `CatalogService`, and `OrderService`.

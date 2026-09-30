@@ -54,6 +54,9 @@
 
 - Architecture approved.
 - Solution skeleton initialized.
-- Backend services and web client compile successfully.
-- All backend services expose `GET /health`.
-- No business logic implemented yet.
+- All projects target .NET 9.
+- Solution builds and tests successfully.
+- PostgreSQL/EF Core persistence foundation configured.
+- Separate DbContext registered for Identity, Catalog and Order services.
+- Local database credentials are intentionally not stored in Git.
+- Database schema and migrations are not created yet.
