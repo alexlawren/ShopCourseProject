@@ -52,11 +52,22 @@
 
 ## Current status
 
-- Architecture approved.
-- Solution skeleton initialized.
-- All projects target .NET 9.
-- Solution builds and tests successfully.
-- PostgreSQL/EF Core persistence foundation configured.
-- Separate DbContext registered for Identity, Catalog and Order services.
-- Local database credentials are intentionally not stored in Git.
-- Database schema and migrations are not created yet.
+Implemented:
+
+- Solution skeleton.
+- PostgreSQL/EF Core persistence foundation.
+- IdentityService user registration/authentication.
+- JWT access tokens.
+- Refresh token rotation.
+- Customer/Admin role infrastructure.
+- Initial Identity database migration.
+
+Planned / not implemented:
+
+- Catalog domain.
+- Order domain.
+- gRPC inter-service communication.
+- Gateway routing (YARP).
+- SignalR real-time updates.
+- Web shop UI.
+- Docker Compose.

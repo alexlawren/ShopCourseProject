@@ -47,6 +47,25 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
 - No direct project references between `IdentityService`, `CatalogService`, and `OrderService`.
 - `Shop.Web` does not reference any backend project directly.
 
+## Implementation Status
+
+### IdentityService (implemented)
+
+- ASP.NET Core Identity with `ApplicationUser : IdentityUser<Guid>`.
+- PostgreSQL database `shop_identity` with EF Core migrations.
+- JWT access tokens (HMAC-SHA256, configurable lifetime).
+- Hashed refresh tokens with rotation.
+- Roles: `Customer` (default for registration), `Admin`.
+- Endpoints: register, login, refresh, logout, me.
+
+### CatalogService (skeleton only)
+
+- DbContext registered, no domain entities or migrations yet.
+
+### OrderService (skeleton only)
+
+- DbContext registered, no domain entities or migrations yet.
+
 ## Technologies Intentionally Excluded in v1
 
 - RabbitMQ
