@@ -323,3 +323,68 @@ Stock quantity can be updated for both active and inactive products (e.g. while 
 - `401 Unauthorized`: Missing or invalid JWT.
 - `403 Forbidden`: Token lacks `Admin` role.
 - `404 Not Found`: Product does not exist.
+
+---
+
+## POST /api/catalog/products/{id}/image
+
+Uploads or replaces an image for the specified product. Can be performed on both active and inactive products.
+
+If an image already exists for the product, it is replaced: the new image is saved, the database `ImagePath` is updated, and the previous physical file is removed from storage. If database persistence fails, the newly saved file is automatically cleaned up (failure compensation).
+
+**Authentication**: Required (`Admin` role)
+
+**Content-Type**: `multipart/form-data`
+
+### Form Data
+- `file`: binary file (required).
+  - Supported formats: JPEG (`.jpg`, `.jpeg`), PNG (`.png`), WEBP (`.webp`).
+  - Supported Content-Types: `image/jpeg`, `image/png`, `image/webp`.
+  - Maximum size: 5 MiB (5,242,880 bytes).
+  - Validation: file extension, Content-Type, and binary file signatures (magic bytes) must all match. Arbitrary files, SVG, executable files, or fake extensions are rejected.
+  - Storage: saved under a cryptographically random server-generated GUID filename (client filename is never preserved on disk).
+
+### Responses
+
+- `200 OK`
+```json
+{
+  "productId": "11111111-1111-1111-1111-111111111111",
+  "imagePath": "/product-images/68a9dd8eb32540ff9e953de9983533d5.png"
+}
+```
+- `400 Bad Request`: Empty file, unsupported file extension, mismatched Content-Type, invalid magic bytes signature, or file exceeding 5 MiB.
+- `401 Unauthorized`: Missing or invalid JWT.
+- `403 Forbidden`: Token lacks `Admin` role.
+- `404 Not Found`: Product does not exist.
+
+---
+
+## DELETE /api/catalog/products/{id}/image
+
+Deletes the image associated with the product and sets `ImagePath = null`.
+
+This operation is idempotent: if the product has no image (`ImagePath == null`), it returns `204 No Content`. If the physical file is already missing from disk, the database is still cleared and `204 No Content` is returned.
+
+**Authentication**: Required (`Admin` role)
+
+### Responses
+
+- `204 No Content`: Image successfully removed (or already absent).
+- `401 Unauthorized`: Missing or invalid JWT.
+- `403 Forbidden`: Token lacks `Admin` role.
+- `404 Not Found`: Product does not exist.
+
+---
+
+## GET /product-images/{filename}
+
+Public static endpoint for serving product images directly from local storage.
+
+**Authentication**: None (Public)
+
+### Responses
+
+- `200 OK`: Binary image stream with matching `Content-Type` header (`image/png`, `image/jpeg`, or `image/webp`).
+- `404 Not Found`: File does not exist on disk or has been deleted.
+

@@ -64,10 +64,15 @@ Implemented:
 - Admin-only Catalog write API.
 - Category/Product soft delete.
 - Stock management.
+- Product image upload.
+- JPEG/PNG/WEBP validation.
+- Local image storage.
+- Image replacement/removal.
+- Public image serving.
 
 Planned / not implemented:
 
-- Product image storage/upload (planned for Change-set №4B.2).
+- Azure Blob/cloud storage adapter.
 - Stock reservation (gRPC).
 - OrderService domain & processing.
 - gRPC.
@@ -75,4 +80,5 @@ Planned / not implemented:
 - Gateway.
 - Blazor UI.
 - Docker Compose.
+
 

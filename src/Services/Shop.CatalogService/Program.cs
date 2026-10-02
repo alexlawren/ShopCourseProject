@@ -2,8 +2,10 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Shop.CatalogService.Application.Catalog.Images;
 using Shop.CatalogService.Application.Catalog.Services;
 using Shop.CatalogService.Infrastructure.Persistence;
+using Shop.CatalogService.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,6 +56,13 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<ICatalogQueryService, CatalogQueryService>();
 builder.Services.AddScoped<ICatalogCommandService, CatalogCommandService>();
 
+// --------------- Product Image Storage & Service ---------------
+builder.Services.Configure<ProductImageOptions>(
+    builder.Configuration.GetSection(ProductImageOptions.SectionName));
+builder.Services.AddSingleton<ProductImageValidator>();
+builder.Services.AddSingleton<IProductImageStorage, LocalProductImageStorage>();
+builder.Services.AddScoped<IProductImageService, ProductImageService>();
+
 // --------------- Controllers & Error Handling ---------------
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
@@ -63,6 +72,25 @@ var app = builder.Build();
 // --------------- Middleware ---------------
 app.UseExceptionHandler();
 
+// --------------- Static File Serving (Product Images) ---------------
+var imageOptions = app.Configuration
+    .GetSection(ProductImageOptions.SectionName)
+    .Get<ProductImageOptions>() ?? new ProductImageOptions();
+
+var storageDirectory = Path.IsPathRooted(imageOptions.StoragePath)
+    ? Path.GetFullPath(imageOptions.StoragePath)
+    : Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, imageOptions.StoragePath));
+
+Directory.CreateDirectory(storageDirectory);
+
+var requestPath = "/" + (imageOptions.RequestPath ?? "product-images").Trim('/');
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(storageDirectory),
+    RequestPath = requestPath
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -71,3 +99,4 @@ app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "CatalogService" }));
 
 app.Run();
+

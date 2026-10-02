@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Shop.CatalogService.Application.Catalog.Commands;
 using Shop.CatalogService.Application.Catalog.Dtos;
+using Shop.CatalogService.Application.Catalog.Images;
 using Shop.CatalogService.Application.Catalog.Queries;
 using Shop.CatalogService.Application.Catalog.Services;
 using Shop.CatalogService.Domain.Constants;
@@ -15,13 +16,16 @@ public sealed class CatalogController : ControllerBase
 {
     private readonly ICatalogQueryService _queryService;
     private readonly ICatalogCommandService _commandService;
+    private readonly IProductImageService _imageService;
 
     public CatalogController(
         ICatalogQueryService queryService,
-        ICatalogCommandService commandService)
+        ICatalogCommandService commandService,
+        IProductImageService imageService)
     {
         _queryService = queryService;
         _commandService = commandService;
+        _imageService = imageService;
     }
 
     // ==========================================
@@ -303,5 +307,69 @@ public sealed class CatalogController : ControllerBase
 
             _ => Ok(result.Value)
         };
+    }
+
+    // ==========================================
+    // Admin Product Image Endpoints
+    // ==========================================
+
+    /// <summary>
+    /// Uploads or replaces a product image. Requires Admin role.
+    /// </summary>
+    [HttpPost("products/{id:guid}/image")]
+    [Authorize(Roles = CatalogRoles.Admin)]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(ProductImageDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ProductImageDto>> UploadProductImage(
+        Guid id,
+        IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        var result = await _imageService.UploadImageAsync(id, file, cancellationToken);
+
+        return result.Status switch
+        {
+            CommandStatus.NotFound => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Product Not Found",
+                detail: result.ErrorMessage),
+
+            CommandStatus.BadRequest => Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Bad Request",
+                detail: result.ErrorMessage),
+
+            _ => Ok(result.Value)
+        };
+    }
+
+    /// <summary>
+    /// Deletes a product image and clears ImagePath. Requires Admin role.
+    /// </summary>
+    [HttpDelete("products/{id:guid}/image")]
+    [Authorize(Roles = CatalogRoles.Admin)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteProductImage(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _imageService.RemoveImageAsync(id, cancellationToken);
+
+        if (result.Status == CommandStatus.NotFound)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Product Not Found",
+                detail: result.ErrorMessage);
+        }
+
+        return NoContent();
     }
 }

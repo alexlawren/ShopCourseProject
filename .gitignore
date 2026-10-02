@@ -85,6 +85,8 @@ appsettings.*.Local.json
 *.db
 *.db-shm
 *.db-wal
+data/product-images/
+src/Services/Shop.CatalogService/data/product-images/
 
 # =========================
 # Docker local overrides

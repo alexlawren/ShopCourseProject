@@ -58,7 +58,7 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
 - Roles: `Customer` (default for registration), `Admin`.
 - Endpoints: register, login, refresh, logout, me.
 
-### CatalogService (partially implemented — Change-set №4A & №4B.1)
+### CatalogService (partially implemented — Change-set №4A, №4B.1 & №4B.2)
 
 - PostgreSQL database `shop_catalog` with EF Core migration `InitialCatalog`.
 - Domain entities: `Category`, `Product` with one-to-many relationship, `Restrict` delete behavior, and PostgreSQL check constraints.
@@ -69,7 +69,15 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
 - **Admin Write API**: Admin CRUD endpoints for categories and products (`POST /api/catalog/categories`, `PUT /api/catalog/categories/{id}`, `DELETE /api/catalog/categories/{id}`, `POST /api/catalog/products`, `PUT /api/catalog/products/{id}`, `DELETE /api/catalog/products/{id}`).
 - **Soft Deletion**: Category and product deletion is strictly soft-delete (`IsActive = false`, `UpdatedAtUtc = UtcNow`) preserving audit history and relational integrity. Inactive categories hide their associated products from public read queries.
 - **Stock Management**: Absolute stock level adjustments via `PATCH /api/catalog/products/{id}/stock` with non-negative validation and PostgreSQL check constraint enforcement.
-- **Not yet implemented**: Product image upload/filesystem storage (planned for Change-set №4B.2), gRPC stock reservation, SignalR realtime updates.
+- **Product Image Storage**:
+  - `IProductImageStorage` abstraction with `LocalProductImageStorage` implementation on the local filesystem.
+  - Strict validation of uploaded files (size limit 5 MiB, allowed formats JPEG/PNG/WEBP, Content-Type matching, binary magic byte verification).
+  - Secure server-generated GUID filenames preventing client filename usage and path traversal attacks.
+  - `Product.ImagePath` stores relative public URLs (e.g. `/product-images/<guid>.<ext>`) rather than physical disk paths.
+  - Public static file endpoint (`GET /product-images/{filename}`) configured via ASP.NET Core `UseStaticFiles` without authentication requirement.
+  - The storage abstraction allows substituting `LocalProductImageStorage` with Azure Blob Storage or S3 later without modifying domain logic or HTTP API contracts.
+  - Storage path is configurable, facilitating Docker volume mounting (`/data/product-images`) in future deployment steps.
+- **Not yet implemented**: gRPC stock reservation, SignalR realtime updates.
 
 ### OrderService (skeleton only)
 
