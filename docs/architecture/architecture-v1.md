@@ -2,13 +2,13 @@
 
 ## Components
 
-| Component | Type | Description |
-|---|---|---|
-| `Shop.Web` | Blazor WebAssembly | Web-client for users and administrators |
-| `Shop.Gateway` | ASP.NET Core | Single entry point; YARP-based API Gateway (planned) |
-| `Shop.IdentityService` | ASP.NET Core Web API | Users, roles (Customer/Admin), JWT, refresh tokens |
-| `Shop.CatalogService` | ASP.NET Core Web API | Categories, products, search, stock reservation |
-| `Shop.OrderService` | ASP.NET Core Web API | Cart, order processing, order statuses, payment simulation |
+| Component              | Type                 | Description                                                |
+| ---------------------- | -------------------- | ---------------------------------------------------------- |
+| `Shop.Web`             | Blazor WebAssembly   | Web-client for users and administrators                    |
+| `Shop.Gateway`         | ASP.NET Core         | Single entry point; YARP-based API Gateway (planned)       |
+| `Shop.IdentityService` | ASP.NET Core Web API | Users, roles (Customer/Admin), JWT, refresh tokens         |
+| `Shop.CatalogService`  | ASP.NET Core Web API | Categories, products, search, stock reservation            |
+| `Shop.OrderService`    | ASP.NET Core Web API | Cart, order processing, order statuses, payment simulation |
 
 ## Communication
 
@@ -29,11 +29,11 @@ Shop.OrderService   ─────────► Browser              SignalR 
 
 Each service owns its own PostgreSQL database. Direct cross-service table access is forbidden.
 
-| Service | DbContext | Database |
-|---|---|---|
+| Service                | DbContext           | Database        |
+| ---------------------- | ------------------- | --------------- |
 | `Shop.IdentityService` | `IdentityDbContext` | `shop_identity` |
-| `Shop.CatalogService` | `CatalogDbContext` | `shop_catalog` |
-| `Shop.OrderService` | `OrderDbContext` | `shop_orders` |
+| `Shop.CatalogService`  | `CatalogDbContext`  | `shop_catalog`  |
+| `Shop.OrderService`    | `OrderDbContext`    | `shop_orders`   |
 
 **Rule**: A service must not query another service's database directly.
 
@@ -79,9 +79,17 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
   - Storage path is configurable, facilitating Docker volume mounting (`/data/product-images`) in future deployment steps.
 - **Not yet implemented**: gRPC stock reservation, SignalR realtime updates.
 
-### OrderService (skeleton only)
+### OrderService (partially implemented — Change-set №5A)
 
-- DbContext registered, no domain entities or migrations yet.
+- **JWT Authentication**: Independently validates JWT tokens issued by `IdentityService` using the symmetric signing key (`Jwt:Key`), validating Issuer, Audience, Lifetime, and Signing Key (`MapInboundClaims = false`, `NameClaimType = "sub"`).
+- **Persistence Foundation**: Dedicated PostgreSQL database `shop_orders` with EF Core migration `InitialOrders`.
+- **Domain Entities**: `Cart`, `CartItem`, `Order`, `OrderItem`, `OrderStatusHistory`.
+- **Enums**: `OrderStatus` (`Created`, `Confirmed`, `Processing`, `Shipped`, `Completed`, `Cancelled`) and `PaymentStatus` (`Pending`, `Paid`, `Cancelled`) stored as strings via `HasConversion<string>()`.
+- **Database Constraints**: Unique index on `Cart.UserId` (one cart per user), unique composite index on `(CartId, ProductId)`, check constraints on `CartItem.Quantity > 0`, `OrderItem.Quantity > 0`, `OrderItem.UnitPrice >= 0`, `OrderItem.LineTotal >= 0`, `Order.TotalAmount >= 0`, decimal(18,2) money precision.
+- **Authenticated Cart API**: Lazy cart creation, increment semantics on repeated item addition, absolute quantity update, item removal, and full cart clear.
+- **Per-User Isolation**: User ID is resolved strictly from the validated JWT token (`sub` claim); users cannot view or manipulate carts of other users.
+- **OrderItem Snapshot Model**: `OrderItem` stores historical snapshots of `ProductName` and `UnitPrice` to preserve historical integrity regardless of subsequent catalog changes.
+- **Not yet implemented**: Checkout, order lifecycle and status management API, gRPC stock reservation with CatalogService, simulated payment, SignalR realtime notifications.
 
 ## Technologies Intentionally Excluded in v1
 
@@ -94,3 +102,4 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
 - AutoMapper
 - CQRS
 - MassTransit
+

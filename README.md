@@ -56,29 +56,23 @@ Implemented:
 
 - Solution skeleton.
 - Persistence foundation.
-- Identity and authentication.
-- Catalog database model.
-- Catalog public read API.
-- Search/filter/sort/pagination.
-- JWT validation in CatalogService.
-- Admin-only Catalog write API.
-- Category/Product soft delete.
-- Stock management.
-- Product image upload.
-- JPEG/PNG/WEBP validation.
-- Local image storage.
-- Image replacement/removal.
-- Public image serving.
+- Identity and authentication (`shop_identity`, JWT, refresh tokens).
+- Catalog database model and public read API (`shop_catalog`, search/filter/sort/pagination).
+- JWT validation in CatalogService and Admin write API (CRUD, soft delete, stock management).
+- Product image upload, validation, local filesystem storage, and public static image serving.
+- Order persistence foundation (`shop_orders`, `InitialOrders` migration).
+- Order domain model (`Cart`, `CartItem`, `Order`, `OrderItem`, `OrderStatusHistory`, `OrderStatus`, `PaymentStatus`).
+- Authenticated Cart API (`GET /api/cart`, `POST /api/cart/items`, `PUT /api/cart/items/{productId}`, `DELETE /api/cart/items/{productId}`, `DELETE /api/cart`).
+- Per-user cart isolation based on JWT `sub` claim.
 
 Planned / not implemented:
 
-- Azure Blob/cloud storage adapter.
-- Stock reservation (gRPC).
-- OrderService domain & processing.
-- gRPC.
-- SignalR.
-- Gateway.
-- Blazor UI.
-- Docker Compose.
-
+- Catalog gRPC stock reservation.
+- Checkout and order creation from cart.
+- Order processing lifecycle and status management API.
+- Simulated payment processing.
+- SignalR realtime notifications.
+- YARP API Gateway.
+- Blazor WebAssembly UI.
+- Docker & Docker Compose setup.
 
