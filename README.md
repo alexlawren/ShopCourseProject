@@ -55,19 +55,20 @@
 Implemented:
 
 - Solution skeleton.
-- PostgreSQL/EF Core persistence foundation.
-- IdentityService user registration/authentication.
-- JWT access tokens.
-- Refresh token rotation.
-- Customer/Admin role infrastructure.
-- Initial Identity database migration.
+- Persistence foundation.
+- Identity and authentication.
+- Catalog database model.
+- Catalog public read API.
+- Search/filter/sort/pagination.
 
 Planned / not implemented:
 
-- Catalog domain.
-- Order domain.
-- gRPC inter-service communication.
-- Gateway routing (YARP).
-- SignalR real-time updates.
-- Web shop UI.
+- Catalog Admin CRUD.
+- Product images upload.
+- Stock management API.
+- Order Service.
+- gRPC.
+- Gateway.
+- SignalR.
+- Blazor shop UI.
 - Docker Compose.

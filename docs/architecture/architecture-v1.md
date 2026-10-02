@@ -58,9 +58,14 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
 - Roles: `Customer` (default for registration), `Admin`.
 - Endpoints: register, login, refresh, logout, me.
 
-### CatalogService (skeleton only)
+### CatalogService (partially implemented — Change-set №4A)
 
-- DbContext registered, no domain entities or migrations yet.
+- PostgreSQL database `shop_catalog` with EF Core migration `InitialCatalog`.
+- Domain entities: `Category`, `Product` with one-to-many relationship, `Restrict` delete behavior, and PostgreSQL check constraints.
+- Public read API: categories list, products list, product details by ID.
+- Server-side features: case-insensitive search (`EF.Functions.ILike`), filtering (categoryId, minPrice, maxPrice, inStock), sorting (`priceAsc`, `priceDesc`, `nameAsc`, `nameDesc`, `newest`), and pagination (max pageSize = 100).
+- Standard ASP.NET Core `ProblemDetails` error responses.
+- **Not yet implemented**: Write API (Admin CRUD for categories and products), product image upload/filesystem storage, stock management API, stock reservation, gRPC, SignalR.
 
 ### OrderService (skeleton only)
 
