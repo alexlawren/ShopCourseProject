@@ -6,6 +6,8 @@ public sealed class Order
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
+    public Guid CheckoutRequestId { get; set; }
+    public Guid ReservationId { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.Created;
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Pending;
     public decimal TotalAmount { get; set; }

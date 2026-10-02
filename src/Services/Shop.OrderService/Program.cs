@@ -2,7 +2,10 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Shop.CatalogService.Grpc;
 using Shop.OrderService.Application.Cart.Services;
+using Shop.OrderService.Application.Orders.Services;
+using Shop.OrderService.Infrastructure.Grpc;
 using Shop.OrderService.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -50,8 +53,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+// --------------- gRPC Clients ---------------
+var catalogGrpcAddress = builder.Configuration["CatalogGrpc:Address"] ?? "http://localhost:5059";
+builder.Services.AddGrpcClient<StockReservationService.StockReservationServiceClient>(options =>
+{
+    options.Address = new Uri(catalogGrpcAddress);
+});
+
 // --------------- Application Services ---------------
 builder.Services.AddScoped<ICartService, CartService>();
+builder.Services.AddScoped<ICatalogStockClient, CatalogStockGrpcClient>();
+builder.Services.AddScoped<ICheckoutService, CheckoutService>();
+builder.Services.AddScoped<IOrderQueryService, OrderQueryService>();
 
 // --------------- Controllers & Error Handling ---------------
 builder.Services.AddControllers();

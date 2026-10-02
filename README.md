@@ -69,13 +69,19 @@ Implemented:
 - Stock reservation persistence (`shop_catalog`, `AddStockReservations` migration).
 - Idempotent request handling via unique `RequestId`.
 - Release (inventory restoration) and Commit (permanent confirmation) semantics.
+- OrderService production Catalog gRPC client (`ICatalogStockClient`, `CatalogStockGrpcClient`) via shared `contracts/grpc/catalog_stock.proto`.
+- Checkout pipeline (`POST /api/orders`) with client-generated idempotent `RequestId`.
+- Order creation with immutable `OrderItem` snapshots (name, unit price, quantity, line total) and initial `OrderStatusHistory` ("Created").
+- Atomic local database transaction ensuring order persistence and cart clearance commit together.
+- Inter-service reservation orchestration (Reserve -> local save -> Commit, with automatic Release compensation prior to durable persistence).
+- Customer order read API (`GET /api/orders`, `GET /api/orders/{id}`) with strict per-user ownership isolation.
 
 Planned / not implemented:
 
-- OrderService production gRPC client for CatalogService.
-- Checkout and order creation from cart.
-- Order processing lifecycle and status management API.
 - Simulated payment processing.
+- Order processing lifecycle and status management API.
+- Order cancellation with inventory restoration.
+- Admin order management API.
 - SignalR realtime notifications.
 - YARP API Gateway.
 - Blazor WebAssembly UI.

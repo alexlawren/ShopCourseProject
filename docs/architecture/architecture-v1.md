@@ -88,17 +88,37 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
   - Internal service-to-service communication only; never exposed publicly or via Gateway.
 - **Not yet implemented**: SignalR realtime updates.
 
-### OrderService (partially implemented — Change-set №5A)
+### OrderService (partially implemented — Change-set №5C.1)
 
 - **JWT Authentication**: Independently validates JWT tokens issued by `IdentityService` using the symmetric signing key (`Jwt:Key`), validating Issuer, Audience, Lifetime, and Signing Key (`MapInboundClaims = false`, `NameClaimType = "sub"`).
-- **Persistence Foundation**: Dedicated PostgreSQL database `shop_orders` with EF Core migration `InitialOrders`.
+- **Persistence Foundation**: Dedicated PostgreSQL database `shop_orders` with EF Core migrations `InitialOrders` and `AddCheckoutMetadata`.
 - **Domain Entities**: `Cart`, `CartItem`, `Order`, `OrderItem`, `OrderStatusHistory`.
+- **Checkout Metadata**: `Order.CheckoutRequestId` (unique index, idempotency key) and `Order.ReservationId` (unique index, catalog correlation).
 - **Enums**: `OrderStatus` (`Created`, `Confirmed`, `Processing`, `Shipped`, `Completed`, `Cancelled`) and `PaymentStatus` (`Pending`, `Paid`, `Cancelled`) stored as strings via `HasConversion<string>()`.
-- **Database Constraints**: Unique index on `Cart.UserId` (one cart per user), unique composite index on `(CartId, ProductId)`, check constraints on `CartItem.Quantity > 0`, `OrderItem.Quantity > 0`, `OrderItem.UnitPrice >= 0`, `OrderItem.LineTotal >= 0`, `Order.TotalAmount >= 0`, decimal(18,2) money precision.
+- **Database Constraints**: Unique index on `Cart.UserId` (one cart per user), unique composite index on `(CartId, ProductId)`, unique index on `Order.CheckoutRequestId`, unique index on `Order.ReservationId`, check constraints on `CartItem.Quantity > 0`, `OrderItem.Quantity > 0`, `OrderItem.UnitPrice >= 0`, `OrderItem.LineTotal >= 0`, `Order.TotalAmount >= 0`, decimal(18,2) money precision.
 - **Authenticated Cart API**: Lazy cart creation, increment semantics on repeated item addition, absolute quantity update, item removal, and full cart clear.
-- **Per-User Isolation**: User ID is resolved strictly from the validated JWT token (`sub` claim); users cannot view or manipulate carts of other users.
-- **OrderItem Snapshot Model**: `OrderItem` stores historical snapshots of `ProductName` and `UnitPrice` to preserve historical integrity regardless of subsequent catalog changes.
-- **Not yet implemented**: Checkout, order lifecycle and status management API, gRPC stock reservation with CatalogService, simulated payment, SignalR realtime notifications.
+- **Production gRPC Client**:
+  - Connected to `CatalogService` internal HTTP/2 gRPC endpoint via `contracts/grpc/catalog_stock.proto`.
+  - Abstraction: `ICatalogStockClient` with production implementation `CatalogStockGrpcClient`.
+  - Configurable address (`CatalogGrpc:Address`) and timeout deadline (`CatalogGrpc:TimeoutSeconds`, default 5s).
+  - Business errors (`OUT_OF_STOCK`, `PRODUCT_NOT_FOUND`, `PRODUCT_INACTIVE`, `CATEGORY_INACTIVE`) mapped to domain results and HTTP 409 Conflict.
+  - Network/transport failures mapped to HTTP 503 (`CATALOG_UNAVAILABLE`) or HTTP 502 (`DOWNSTREAM_ERROR`).
+- **Checkout Orchestration Pipeline**:
+  - `POST /api/orders` with client-provided unique `RequestId`.
+  - Idempotent fast-path: if `CheckoutRequestId` exists for current user, retries `CommitReservation` and returns 200 OK with existing order.
+  - Empty cart rejection (400 Bad Request `EMPTY_CART`).
+  - Immutable cart snapshot (max 100 items).
+  - Stock reservation via Catalog gRPC `ReserveStock`.
+  - Concurrent cart modification verification: if cart changed during reserve, cancels checkout, releases reservation, and returns 409 Conflict `CART_CHANGED`.
+  - Atomic local transaction: persists `Order`, immutable `OrderItem` snapshots (name, unit price, quantity, line total), initial `OrderStatusHistory` ("Created"), and clears cart items.
+  - Post-persistence confirmation: calls Catalog gRPC `CommitReservation`.
+- **Strict Reservation Compensation Rules**:
+  - **Before durable Order persistence**: any failure (cart modified concurrently, local DB error) triggers automatic `ReleaseReservation(reservationId)` compensation to restore stock immediately.
+  - **After durable Order persistence**: `ReleaseReservation` is **strictly prohibited**. The order is durable. If `CommitReservation` fails (network error / timeout), the client receives HTTP 503 `CATALOG_UNAVAILABLE` and can safely retry checkout with the same `RequestId`; the fast-path will retry `CommitReservation`.
+- **Order Read API & User Isolation**:
+  - `GET /api/orders`: paginated list of current customer's orders sorted by `CreatedAtUtc DESC`.
+  - `GET /api/orders/{id}`: returns full order details, snapshot items, and status history. Returns 404 Not Found if the order belongs to another customer (preventing ID enumeration).
+- **Not yet implemented**: Simulated payment, order status transitions and lifecycle management API, cancellation with stock release, Admin order API, SignalR realtime notifications.
 
 ## Technologies Intentionally Excluded in v1
 

@@ -18,8 +18,18 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.UserId)
             .IsRequired();
 
+        builder.Property(o => o.CheckoutRequestId)
+            .IsRequired();
+
+        builder.Property(o => o.ReservationId)
+            .IsRequired();
+
         builder.HasIndex(o => o.UserId);
         builder.HasIndex(o => o.CreatedAtUtc);
+        builder.HasIndex(o => o.CheckoutRequestId)
+            .IsUnique();
+        builder.HasIndex(o => o.ReservationId)
+            .IsUnique();
 
         builder.Property(o => o.Status)
             .IsRequired()
