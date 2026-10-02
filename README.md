@@ -64,10 +64,15 @@ Implemented:
 - Order domain model (`Cart`, `CartItem`, `Order`, `OrderItem`, `OrderStatusHistory`, `OrderStatus`, `PaymentStatus`).
 - Authenticated Cart API (`GET /api/cart`, `POST /api/cart/items`, `PUT /api/cart/items/{productId}`, `DELETE /api/cart/items/{productId}`, `DELETE /api/cart`).
 - Per-user cart isolation based on JWT `sub` claim.
+- Catalog gRPC StockReservation service (`contracts/grpc/catalog_stock.proto`, internal HTTP/2 endpoint).
+- Atomic stock reservation with concurrent-safe updates and multi-item rollback.
+- Stock reservation persistence (`shop_catalog`, `AddStockReservations` migration).
+- Idempotent request handling via unique `RequestId`.
+- Release (inventory restoration) and Commit (permanent confirmation) semantics.
 
 Planned / not implemented:
 
-- Catalog gRPC stock reservation.
+- OrderService production gRPC client for CatalogService.
 - Checkout and order creation from cart.
 - Order processing lifecycle and status management API.
 - Simulated payment processing.

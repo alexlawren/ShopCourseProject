@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Shop.CatalogService.Application.Catalog.Images;
 using Shop.CatalogService.Application.Catalog.Services;
+using Shop.CatalogService.Application.StockReservation.Services;
+using Shop.CatalogService.Grpc.Services;
 using Shop.CatalogService.Infrastructure.Persistence;
 using Shop.CatalogService.Infrastructure.Storage;
 
@@ -55,6 +57,10 @@ builder.Services.AddAuthorization();
 // --------------- Application Services ---------------
 builder.Services.AddScoped<ICatalogQueryService, CatalogQueryService>();
 builder.Services.AddScoped<ICatalogCommandService, CatalogCommandService>();
+builder.Services.AddScoped<IStockReservationService, StockReservationService>();
+
+// --------------- gRPC Services ---------------
+builder.Services.AddGrpc();
 
 // --------------- Product Image Storage & Service ---------------
 builder.Services.Configure<ProductImageOptions>(
@@ -95,8 +101,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapGrpcService<StockReservationGrpcService>();
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "CatalogService" }));
 
 app.Run();
 
+public partial class Program;

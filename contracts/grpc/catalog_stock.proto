@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package shop.catalog.stock;
+
+option csharp_namespace = "Shop.CatalogService.Grpc";
+
+// Service for inter-service stock reservation management
+service StockReservationService {
+  // Atomically reserves stock for requested items and creates a pending reservation.
+  rpc ReserveStock (ReserveStockRequest) returns (ReserveStockResponse);
+
+  // Releases a reserved stock allocation back to inventory (idempotent).
+  rpc ReleaseReservation (ReleaseReservationRequest) returns (ReleaseReservationResponse);
+
+  // Confirms and permanently commits a reserved stock allocation (idempotent).
+  rpc CommitReservation (CommitReservationRequest) returns (CommitReservationResponse);
+}
+
+message ReserveStockItem {
+  string product_id = 1;
+  int32 quantity = 2;
+}
+
+message ReserveStockRequest {
+  string request_id = 1;
+  repeated ReserveStockItem items = 2;
+}
+
+message ReservedStockItem {
+  string product_id = 1;
+  string product_name = 2;
+  // Unit price in minor currency units (price * 100, e.g. 1500.25 -> 150025)
+  int64 unit_price_minor = 3;
+  int32 quantity = 4;
+}
+
+message ReserveStockResponse {
+  bool success = 1;
+  string reservation_id = 2;
+  repeated ReservedStockItem items = 3;
+  string error_code = 4;
+  string error_message = 5;
+}
+
+message ReleaseReservationRequest {
+  string reservation_id = 1;
+}
+
+message ReleaseReservationResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CommitReservationRequest {
+  string reservation_id = 1;
+}
+
+message CommitReservationResponse {
+  bool success = 1;
+  string message = 2;
+}

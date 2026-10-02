@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.20">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -16,6 +17,10 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.20" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.20" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="..\..\..\contracts\grpc\catalog_stock.proto" GrpcServices="Server" />
   </ItemGroup>
 
 </Project>

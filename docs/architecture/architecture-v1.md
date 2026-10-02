@@ -58,10 +58,10 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
 - Roles: `Customer` (default for registration), `Admin`.
 - Endpoints: register, login, refresh, logout, me.
 
-### CatalogService (partially implemented — Change-set №4A, №4B.1 & №4B.2)
+### CatalogService (partially implemented — Change-set №4A, №4B.1, №4B.2 & №5B)
 
-- PostgreSQL database `shop_catalog` with EF Core migration `InitialCatalog`.
-- Domain entities: `Category`, `Product` with one-to-many relationship, `Restrict` delete behavior, and PostgreSQL check constraints.
+- PostgreSQL database `shop_catalog` with EF Core migrations `InitialCatalog` and `AddStockReservations`.
+- Domain entities: `Category`, `Product`, `StockReservation`, `StockReservationItem`.
 - Public read API: categories list, products list, product details by ID (accessible without authentication).
 - Server-side features: case-insensitive search (`EF.Functions.ILike`), filtering (categoryId, minPrice, maxPrice, inStock), sorting (`priceAsc`, `priceDesc`, `nameAsc`, `nameDesc`, `newest`), and pagination (max pageSize = 100).
 - Standard ASP.NET Core `ProblemDetails` error responses.
@@ -77,7 +77,16 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
   - Public static file endpoint (`GET /product-images/{filename}`) configured via ASP.NET Core `UseStaticFiles` without authentication requirement.
   - The storage abstraction allows substituting `LocalProductImageStorage` with Azure Blob Storage or S3 later without modifying domain logic or HTTP API contracts.
   - Storage path is configurable, facilitating Docker volume mounting (`/data/product-images`) in future deployment steps.
-- **Not yet implemented**: gRPC stock reservation, SignalR realtime updates.
+- **gRPC Stock Reservation Service**:
+  - Language-neutral protobuf contract defined in `contracts/grpc/catalog_stock.proto`.
+  - Operations: `ReserveStock`, `ReleaseReservation`, `CommitReservation`.
+  - Dedicated internal HTTP/2 cleartext port (default `5059` in Development) coexisting with HTTP/1.1 REST (`5058`).
+  - Concurrent-safe atomic inventory updates preventing race condition overselling.
+  - Complete multi-item atomicity (all-or-nothing rollback on any item stock failure).
+  - Idempotent request handling via unique `RequestId` constraint.
+  - Three-state reservation lifecycle (`Reserved`, `Committed`, `Released`) with historical snapshot of product name and unit price (minor units).
+  - Internal service-to-service communication only; never exposed publicly or via Gateway.
+- **Not yet implemented**: SignalR realtime updates.
 
 ### OrderService (partially implemented — Change-set №5A)
 
