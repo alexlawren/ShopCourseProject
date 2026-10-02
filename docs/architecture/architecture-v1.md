@@ -58,14 +58,18 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
 - Roles: `Customer` (default for registration), `Admin`.
 - Endpoints: register, login, refresh, logout, me.
 
-### CatalogService (partially implemented — Change-set №4A)
+### CatalogService (partially implemented — Change-set №4A & №4B.1)
 
 - PostgreSQL database `shop_catalog` with EF Core migration `InitialCatalog`.
 - Domain entities: `Category`, `Product` with one-to-many relationship, `Restrict` delete behavior, and PostgreSQL check constraints.
-- Public read API: categories list, products list, product details by ID.
+- Public read API: categories list, products list, product details by ID (accessible without authentication).
 - Server-side features: case-insensitive search (`EF.Functions.ILike`), filtering (categoryId, minPrice, maxPrice, inStock), sorting (`priceAsc`, `priceDesc`, `nameAsc`, `nameDesc`, `newest`), and pagination (max pageSize = 100).
 - Standard ASP.NET Core `ProblemDetails` error responses.
-- **Not yet implemented**: Write API (Admin CRUD for categories and products), product image upload/filesystem storage, stock management API, stock reservation, gRPC, SignalR.
+- **JWT Authorization**: CatalogService independently validates JWT tokens issued by `IdentityService` using the symmetric signing key (`Jwt:Key`), validating Issuer, Audience, Lifetime, and Signing Key without querying `shop_identity` or using `IdentityDbContext`.
+- **Admin Write API**: Admin CRUD endpoints for categories and products (`POST /api/catalog/categories`, `PUT /api/catalog/categories/{id}`, `DELETE /api/catalog/categories/{id}`, `POST /api/catalog/products`, `PUT /api/catalog/products/{id}`, `DELETE /api/catalog/products/{id}`).
+- **Soft Deletion**: Category and product deletion is strictly soft-delete (`IsActive = false`, `UpdatedAtUtc = UtcNow`) preserving audit history and relational integrity. Inactive categories hide their associated products from public read queries.
+- **Stock Management**: Absolute stock level adjustments via `PATCH /api/catalog/products/{id}/stock` with non-negative validation and PostgreSQL check constraint enforcement.
+- **Not yet implemented**: Product image upload/filesystem storage (planned for Change-set №4B.2), gRPC stock reservation, SignalR realtime updates.
 
 ### OrderService (skeleton only)
 

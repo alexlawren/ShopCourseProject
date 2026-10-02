@@ -60,15 +60,19 @@ Implemented:
 - Catalog database model.
 - Catalog public read API.
 - Search/filter/sort/pagination.
+- JWT validation in CatalogService.
+- Admin-only Catalog write API.
+- Category/Product soft delete.
+- Stock management.
 
 Planned / not implemented:
 
-- Catalog Admin CRUD.
-- Product images upload.
-- Stock management API.
-- Order Service.
+- Product image storage/upload (planned for Change-set №4B.2).
+- Stock reservation (gRPC).
+- OrderService domain & processing.
 - gRPC.
-- Gateway.
 - SignalR.
-- Blazor shop UI.
+- Gateway.
+- Blazor UI.
 - Docker Compose.
+

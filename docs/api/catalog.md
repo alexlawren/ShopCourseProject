@@ -131,12 +131,195 @@ Returns full product details by its unique identifier.
 |---|---|---|
 | 404 Not Found | Product does not exist, product is inactive (`IsActive = false`), or product belongs to an inactive category | `ProblemDetails` |
 
-**Example 404 Not Found Response**:
+
+---
+
+# Admin API
+
+All write endpoints in the catalog require authentication with a valid JWT token issued by IdentityService and carrying the `Admin` role (`Role = "Admin"`).
+Unauthorized requests return `401 Unauthorized` (missing/invalid token) or `403 Forbidden` (valid token without `Admin` role).
+
+Delete operations (`DELETE`) are **soft deletes** (`IsActive = false`, `UpdatedAtUtc = UtcNow`). Records are never physically deleted from the database in order to preserve audit history and relational integrity.
+
+---
+
+## POST /api/catalog/categories
+
+Creates a new category.
+
+**Authentication**: Required (`Admin` role)
+
+### Request Body
 ```json
 {
-  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
-  "title": "Product Not Found",
-  "status": 404,
-  "detail": "Product with ID '11111111-1111-1111-1111-111111111111' was not found or is inactive."
+  "name": "Gaming Laptops",
+  "slug": "gaming-laptops"
 }
 ```
+
+- `name`: string, required, max length 120.
+- `slug`: string, required, max length 140, format: URL-friendly (`^[a-z0-9]+(?:-[a-z0-9]+)*$`).
+
+### Responses
+
+- `201 Created`
+  - Headers: `Location: /api/catalog/categories/{id}`
+  - Body: empty or created category metadata.
+- `400 Bad Request`: Validation failure (empty name, invalid slug format).
+- `401 Unauthorized`: Missing or invalid JWT.
+- `403 Forbidden`: Token lacks `Admin` role.
+- `409 Conflict`: Slug already in use by another category.
+
+---
+
+## PUT /api/catalog/categories/{id}
+
+Updates an existing category's name, slug, and active status.
+
+**Authentication**: Required (`Admin` role)
+
+### Request Body
+```json
+{
+  "name": "High-End Gaming Laptops",
+  "slug": "gaming-laptops",
+  "isActive": true
+}
+```
+
+### Responses
+
+- `204 No Content`: Category successfully updated.
+- `400 Bad Request`: Validation error in payload.
+- `401 Unauthorized`: Missing or invalid JWT.
+- `403 Forbidden`: Token lacks `Admin` role.
+- `404 Not Found`: Category with specified ID does not exist.
+- `409 Conflict`: Slug is already taken by another category.
+
+---
+
+## DELETE /api/catalog/categories/{id}
+
+Soft-deletes a category by setting `IsActive = false` and updating `UpdatedAtUtc`.
+This operation is idempotent: if the category is already inactive, it returns `204 No Content`.
+Products belonging to this category are not deleted, but they are excluded from public catalog queries.
+
+**Authentication**: Required (`Admin` role)
+
+### Responses
+
+- `204 No Content`: Category soft-deleted (or already inactive).
+- `401 Unauthorized`: Missing or invalid JWT.
+- `403 Forbidden`: Token lacks `Admin` role.
+- `404 Not Found`: Category does not exist.
+
+---
+
+## POST /api/catalog/products
+
+Creates a new product. Newly created products are automatically active (`IsActive = true`). Image upload is handled separately.
+
+**Authentication**: Required (`Admin` role)
+
+### Request Body
+```json
+{
+  "categoryId": "9d16d27a-90bb-4bd3-ae8f-c846c9136d0a",
+  "name": "Asus ROG Zephyrus G14",
+  "description": "Ultraportable gaming laptop with AMD Ryzen and RTX graphics.",
+  "price": 1899.99,
+  "stockQuantity": 15
+}
+```
+
+- `categoryId`: UUID, required (must reference an active category).
+- `name`: string, required, max length 200.
+- `description`: string, optional, max length 4000.
+- `price`: decimal, required, `>= 0`.
+- `stockQuantity`: integer, required, `>= 0`.
+
+### Responses
+
+- `201 Created`
+  - Headers: `Location: /api/catalog/products/{id}`
+  - Body: empty or created product metadata.
+- `400 Bad Request`: Validation error or referenced category does not exist / is inactive.
+- `401 Unauthorized`: Missing or invalid JWT.
+- `403 Forbidden`: Token lacks `Admin` role.
+
+---
+
+## PUT /api/catalog/products/{id}
+
+Updates an existing product's metadata (`Name`, `Description`, `Price`, `CategoryId`, `IsActive`).
+`StockQuantity` and `ImagePath` cannot be updated through this endpoint.
+
+**Authentication**: Required (`Admin` role)
+
+### Request Body
+```json
+{
+  "categoryId": "9d16d27a-90bb-4bd3-ae8f-c846c9136d0a",
+  "name": "Asus ROG Zephyrus G14 (2026 Edition)",
+  "description": "Updated ultraportable gaming laptop.",
+  "price": 1999.99,
+  "isActive": true
+}
+```
+
+### Responses
+
+- `204 No Content`: Product updated successfully.
+- `400 Bad Request`: Validation error or referenced category does not exist / is inactive.
+- `401 Unauthorized`: Missing or invalid JWT.
+- `403 Forbidden`: Token lacks `Admin` role.
+- `404 Not Found`: Product with specified ID does not exist.
+
+---
+
+## DELETE /api/catalog/products/{id}
+
+Soft-deletes a product by setting `IsActive = false` and updating `UpdatedAtUtc`.
+This operation is idempotent: if the product is already inactive, it returns `204 No Content`.
+The product is immediately hidden from public read queries.
+
+**Authentication**: Required (`Admin` role)
+
+### Responses
+
+- `204 No Content`: Product soft-deleted (or already inactive).
+- `401 Unauthorized`: Missing or invalid JWT.
+- `403 Forbidden`: Token lacks `Admin` role.
+- `404 Not Found`: Product does not exist.
+
+---
+
+## PATCH /api/catalog/products/{id}/stock
+
+Sets the absolute stock quantity of a product.
+Stock quantity can be updated for both active and inactive products (e.g. while preparing inventory).
+
+**Authentication**: Required (`Admin` role)
+
+### Request Body
+```json
+{
+  "quantity": 30
+}
+```
+
+- `quantity`: integer, required, `>= 0`.
+
+### Responses
+
+- `200 OK`
+```json
+{
+  "productId": "11111111-1111-1111-1111-111111111111",
+  "stockQuantity": 30
+}
+```
+- `400 Bad Request`: `quantity < 0`.
+- `401 Unauthorized`: Missing or invalid JWT.
+- `403 Forbidden`: Token lacks `Admin` role.
+- `404 Not Found`: Product does not exist.
