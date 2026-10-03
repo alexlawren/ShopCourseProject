@@ -38,6 +38,8 @@ builder.Services.AddScoped<ICartApiClient, CartApiClient>();
 builder.Services.AddScoped<IOrderApiClient, OrderApiClient>();
 builder.Services.AddScoped<IOrderRealtimeService, OrderRealtimeService>();
 builder.Services.AddScoped<ICheckoutRequestIdStorage, SessionStorageCheckoutRequestIdStorage>();
+builder.Services.AddScoped<IAdminCatalogApiClient, AdminCatalogApiClient>();
+builder.Services.AddScoped<IAdminOrderApiClient, AdminOrderApiClient>();
 
 var host = builder.Build();
 

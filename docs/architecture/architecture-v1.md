@@ -179,7 +179,7 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
 - **Gateway Health**: Dedicated `/health` probe endpoint returning `200 OK`.
 - **CORS Configuration**: Restricts access to specific `Shop.Web` development origins (`http://localhost:5287`, `https://localhost:7177`) with explicit methods and headers, without wildcard credentials.
 
-### Shop.Web (Customer Commerce UI Implemented — Change-set №8B.1)
+### Shop.Web (Customer & Admin Commerce UI Implemented — Change-set №8B.1 & №8B.2)
 
 - **Technology**: Blazor WebAssembly (.NET 9.0) client-side Single Page Application.
 - **Gateway-Only Networking**: Browser connects strictly and exclusively to `Shop.Gateway` (`http://localhost:5210` in Development) configured via `Gateway:BaseUrl`. Direct browser calls to downstream microservices (5078, 5058, 5059, 5141) are strictly prohibited.
@@ -188,7 +188,7 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
   - `CustomAuthenticationStateProvider` decodes Base64Url JWT claims (`sub`, `email`, `role`) for UI rendering only. Backend microservices remain the sole authoritative security validators.
   - No JWT signing keys or database credentials exist on the frontend.
 - **Safe Mutation Refresh Token Flow**:
-  - Proactive JWT expiration check (`JwtClaimsParser.IsExpiredOrExpiringSoon`, 30s skew) triggers `RefreshAsync()` before sending mutations (POST/PUT/DELETE) to prevent replaying unsafe calls on 401.
+  - Proactive JWT expiration check (`JwtClaimsParser.IsExpiredOrExpiringSoon`, 30s skew) triggers `RefreshAsync()` before sending mutations (POST/PUT/DELETE/PATCH) to prevent replaying unsafe calls on 401.
   - Concurrency protected via `SemaphoreSlim(1, 1)` with double-checked locking in `AuthService`.
   - Fallback 401 interceptor retry preserved strictly for safe GET requests.
   - On failure: tokens purged, active OrderHub connection terminated, UI transitions to anonymous.
@@ -213,14 +213,29 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
   - Dynamic `AccessTokenProvider` providing up-to-date JWT from `ITokenStorage` on connect/reconnect.
   - Scoped lifecycle tied to SPA session; disconnected on logout.
   - Subscribes to `OrderCreated`, `OrderStatusChanged`, `PaymentStatusChanged`, updating list and details views idempotently.
-- **Role-Aware Navigation**:
-  - `NavMenu.razor` dynamically renders login/register vs authenticated user email, role badge (Customer/Admin), Cart, Orders, and logout.
-- **Deferred to Change-set №8B.2**:
-  - Admin Catalog Management UI (categories, product CRUD, soft-delete, stock adjustment, image upload/delete).
-  - Admin Orders UI (lifecycle controls, status progression, admin cancellation).
+  - Admin connections automatically join the `admins` group to receive global order creation and transition events.
+- **Admin Commerce Management UI (Change-set №8B.2)**:
+  - **Admin Navigation & Guarding**: Route protection via `@attribute [Authorize(Roles = "Admin")]` and `AuthorizeRouteView` in `App.razor`. Non-admin customers encounter a 403 Forbidden alert.
+  - **Admin Dashboard (`/admin`)**: Central portal for catalog and order management.
+  - **Admin Catalog Management (`/admin/catalog`)**:
+    - Dedicated backend read API (`GET /api/catalog/admin/categories` and `GET /api/catalog/admin/products`) allowing visibility into inactive categories and soft-deleted products.
+    - Category CRUD: creation with slug validation regex contract, editing, soft-delete deactivation, and reactivation (`IsActive = true`).
+    - Product CRUD: creation with validation, editing (excluding direct stock/image mutation), soft-deletion, and reactivation.
+    - Dedicated Stock Adjustment: setting absolute inventory (`PATCH /api/catalog/products/{id}/stock`).
+    - Product Image Management: client-validated `InputFile` (JPEG/PNG/WEBP, 5 MiB max) streaming multipart form-data to `POST /api/catalog/products/{id}/image`; static serving through Gateway; deletion via `DELETE /api/catalog/products/{id}/image`.
+    - SignalR `CatalogHub` live updates for inventory and product state changes.
+  - **Admin Orders Management (`/admin/orders`, `/admin/orders/{id}`)**:
+    - Orders list displaying Order ID, Customer `UserId` (GUID only; no IdentityService user email lookup), timestamps, status badges, and total amount.
+    - Filtering by order status and payment status with server-side pagination.
+    - Order details showing immutable historical `OrderItem` snapshots and full `OrderStatusHistory` timeline.
+    - Guided lifecycle transitions (`Created → Confirmed → Processing → Shipped → Completed`) via `PATCH /api/admin/orders/{id}/status`.
+    - Admin Cancellation (`POST /api/admin/orders/{id}/cancel`): permitted for `Created`, `Confirmed`, and `Processing` orders; triggers inventory return via Catalog gRPC; disabled for `Shipped`, `Completed`, and `Cancelled`.
+    - Real-time order sync via OrderHub `admins` group subscription.
 - **Deferred to Future Stages**:
   - Docker Compose.
   - Final E2E testing suite.
+  - Architecture and UML diagrams.
+  - Coursework final report.
 
 ## Technologies Intentionally Excluded in v1
 

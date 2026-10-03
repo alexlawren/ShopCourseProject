@@ -1,0 +1,279 @@
+@page "/admin/orders"
+@attribute [Authorize(Roles = "Admin")]
+@inject IAdminOrderApiClient AdminOrderClient
+@inject IOrderRealtimeService OrderRealtimeService
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+<PageTitle>Управление заказами — Администратор</PageTitle>
+
+<div class="container my-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h3 mb-0">Все заказы покупателей</h1>
+            <small class="text-muted">Просмотр, фулфилмент и жизненный цикл заказов</small>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-dark border">
+                OrderHub Realtime:
+                @if (OrderRealtimeService.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected)
+                {
+                    <span class="text-success fw-bold">● Подключено (admins)</span>
+                }
+                else
+                {
+                    <span class="text-muted">Подключение...</span>
+                }
+            </span>
+            <a href="admin" class="btn btn-outline-secondary btn-sm">В панель</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_statusMessage))
+    {
+        <div class="alert @(_statusIsError ? "alert-danger" : "alert-success") alert-dismissible fade show py-2 mb-3" role="alert">
+            @_statusMessage
+            <button type="button" class="btn-close" @onclick="() => _statusMessage = null"></button>
+        </div>
+    }
+
+    <!-- Фильтры заказов -->
+    <div class="card border-0 shadow-sm p-3 mb-4 bg-light">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold">Статус заказа</label>
+                <select class="form-select form-select-sm" @bind="_filterStatus" @bind:after="ApplyFilters">
+                    <option value="">Все статусы</option>
+                    <option value="Created">Создан (Created)</option>
+                    <option value="Confirmed">Подтверждён (Confirmed)</option>
+                    <option value="Processing">В обработке (Processing)</option>
+                    <option value="Shipped">Отправлен (Shipped)</option>
+                    <option value="Completed">Выполнен (Completed)</option>
+                    <option value="Cancelled">Отменён (Cancelled)</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold">Статус оплаты</label>
+                <select class="form-select form-select-sm" @bind="_filterPaymentStatus" @bind:after="ApplyFilters">
+                    <option value="">Все статусы оплаты</option>
+                    <option value="Pending">Ожидает оплаты (Pending)</option>
+                    <option value="Paid">Оплачен (Paid)</option>
+                    <option value="Cancelled">Отменён (Cancelled)</option>
+                </select>
+            </div>
+            <div class="col-md-4 d-flex gap-2">
+                <button class="btn btn-outline-primary btn-sm flex-grow-1" @onclick="ApplyFilters">
+                    Применить
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" @onclick="ResetFilters">
+                    Сбросить
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="small text-muted mt-2">Загрузка заказов...</div>
+        </div>
+    }
+    else if (_ordersResult == null || _ordersResult.Items.Count == 0)
+    {
+        <div class="alert alert-info text-center py-4">
+            Заказы не найдены. Попробуйте изменить параметры фильтрации.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive bg-white rounded shadow-sm border">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID Заказа</th>
+                        <th>ID Покупателя (UserId)</th>
+                        <th>Дата создания</th>
+                        <th>Статус</th>
+                        <th>Оплата</th>
+                        <th>Сумма</th>
+                        <th class="text-end">Действие</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var order in _ordersResult.Items)
+                    {
+                        <tr>
+                            <td>
+                                <span class="fw-semibold font-monospace" title="@order.Id">
+                                    #@order.Id.ToString()[..8]...
+                                </span>
+                            </td>
+                            <td>
+                                <span class="text-muted font-monospace small" title="@order.UserId">
+                                    @order.UserId.ToString()[..8]...
+                                </span>
+                            </td>
+                            <td class="text-muted small">
+                                @order.CreatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                            </td>
+                            <td>
+                                <span class="@AdminOrderUiHelper.GetStatusBadgeClass(order.Status)">
+                                    @AdminOrderUiHelper.GetStatusDisplayName(order.Status)
+                                </span>
+                            </td>
+                            <td>
+                                <span class="@AdminOrderUiHelper.GetPaymentStatusBadgeClass(order.PaymentStatus)">
+                                    @AdminOrderUiHelper.GetPaymentStatusDisplayName(order.PaymentStatus)
+                                </span>
+                            </td>
+                            <td class="fw-bold">
+                                @order.TotalAmount.ToString("F2") ₽
+                            </td>
+                            <td class="text-end">
+                                <a href="admin/orders/@order.Id" class="btn btn-outline-primary btn-sm">
+                                    Подробнее &rarr;
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Пагинация -->
+        @if (_ordersResult.TotalPages > 1)
+        {
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <span class="text-muted small">
+                    Страница @_ordersResult.Page из @_ordersResult.TotalPages (всего @_ordersResult.TotalCount заказов)
+                </span>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" disabled="@(_ordersResult.Page <= 1)"
+                            @onclick="() => LoadOrdersPage(_ordersResult.Page - 1)">
+                        &larr; Назад
+                    </button>
+                    <button class="btn btn-outline-secondary" disabled="@(_ordersResult.Page >= _ordersResult.TotalPages)"
+                            @onclick="() => LoadOrdersPage(_ordersResult.Page + 1)">
+                        Вперёд &rarr;
+                    </button>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private PagedResult<AdminOrderListItemDto>? _ordersResult;
+    private bool _isLoading = true;
+    private string? _filterStatus;
+    private string? _filterPaymentStatus;
+    private int _currentPage = 1;
+    private string? _statusMessage;
+    private bool _statusIsError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrdersAsync();
+
+        OrderRealtimeService.OnOrderCreated += HandleRealtimeOrderCreated;
+        OrderRealtimeService.OnOrderStatusChanged += HandleRealtimeOrderStatusChanged;
+        OrderRealtimeService.OnPaymentStatusChanged += HandleRealtimePaymentStatusChanged;
+
+        if (OrderRealtimeService.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Disconnected)
+        {
+            await OrderRealtimeService.StartAsync();
+        }
+    }
+
+    private async Task LoadOrdersAsync(int page = 1)
+    {
+        _isLoading = true;
+        _currentPage = page;
+        try
+        {
+            _ordersResult = await AdminOrderClient.GetOrdersAsync(
+                page: page,
+                pageSize: 20,
+                status: _filterStatus,
+                paymentStatus: _filterPaymentStatus);
+        }
+        catch (Exception ex)
+        {
+            _statusMessage = $"Ошибка загрузки заказов: {ex.Message}";
+            _statusIsError = true;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ApplyFilters()
+    {
+        await LoadOrdersAsync(1);
+    }
+
+    private async Task ResetFilters()
+    {
+        _filterStatus = null;
+        _filterPaymentStatus = null;
+        await LoadOrdersAsync(1);
+    }
+
+    private async Task LoadOrdersPage(int page)
+    {
+        await LoadOrdersAsync(page);
+    }
+
+    // Realtime Handlers
+    private async void HandleRealtimeOrderCreated(OrderCreatedEvent ev)
+    {
+        await InvokeAsync(async () =>
+        {
+            // Новое событие заказа: перезагружаем текущую страницу для отображения актуального заказа и UserId
+            await LoadOrdersAsync(_currentPage);
+            StateHasChanged();
+        });
+    }
+
+    private async void HandleRealtimeOrderStatusChanged(OrderStatusChangedEvent ev)
+    {
+        await InvokeAsync(() =>
+        {
+            if (_ordersResult != null)
+            {
+                var order = _ordersResult.Items.FirstOrDefault(o => o.Id == ev.OrderId);
+                if (order != null)
+                {
+                    order.Status = ev.Status;
+                    StateHasChanged();
+                }
+            }
+        });
+    }
+
+    private async void HandleRealtimePaymentStatusChanged(PaymentStatusChangedEvent ev)
+    {
+        await InvokeAsync(() =>
+        {
+            if (_ordersResult != null)
+            {
+                var order = _ordersResult.Items.FirstOrDefault(o => o.Id == ev.OrderId);
+                if (order != null)
+                {
+                    order.PaymentStatus = ev.PaymentStatus;
+                    StateHasChanged();
+                }
+            }
+        });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        OrderRealtimeService.OnOrderCreated -= HandleRealtimeOrderCreated;
+        OrderRealtimeService.OnOrderStatusChanged -= HandleRealtimeOrderStatusChanged;
+        OrderRealtimeService.OnPaymentStatusChanged -= HandleRealtimePaymentStatusChanged;
+        await Task.CompletedTask;
+    }
+}

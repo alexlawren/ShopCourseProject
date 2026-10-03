@@ -2,11 +2,19 @@
     <Router AppAssembly="@typeof(App).Assembly">
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
-                <NotAuthorized>
+                <NotAuthorized Context="routeContext">
                     <div class="container my-5 text-center">
                         <h2>Доступ ограничен</h2>
-                        <p class="text-muted">Пожалуйста, войдите в систему для доступа к этой странице.</p>
-                        <a href="/login" class="btn btn-primary">Войти</a>
+                        <AuthorizeView Context="authContext">
+                            <Authorized>
+                                <p class="text-danger">У вас нет прав администратора для просмотра этой страницы.</p>
+                                <a href="/" class="btn btn-outline-primary">На главную</a>
+                            </Authorized>
+                            <NotAuthorized Context="anonContext">
+                                <p class="text-muted">Пожалуйста, войдите в систему для доступа к этой странице.</p>
+                                <a href="/login" class="btn btn-primary">Войти</a>
+                            </NotAuthorized>
+                        </AuthorizeView>
                     </div>
                 </NotAuthorized>
             </AuthorizeRouteView>

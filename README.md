@@ -115,13 +115,23 @@ Implemented:
 - Order cancellation UI (`POST /api/orders/{id}/cancel`) with native confirmation dialog and `ORDER_CANCELLATION_IN_PROGRESS` retry handling.
 - OrderHub SignalR realtime customer updates (`/hubs/orders` via Gateway, dynamic JWT `AccessTokenProvider`, automatic reconnect, customer group isolation).
 - Safe mutation token refresh (proactive expiration check with 30s skew before sending mutations; retry strictly limited to GET).
+- Admin Commerce UI (`Shop.Web`):
+  - Admin dashboard (`/admin`) and role-aware navigation and route authorization.
+  - Admin Catalog UI (`/admin/catalog`): Category management (create, edit, soft-delete, reactivation, slug regex validation), Product management (search/category/active filters, create, edit, soft-delete, reactivation), Stock management (`PATCH /stock`), Product image administration (`InputFile` upload, Gateway static image serving, image deletion).
+  - Minimal Admin Catalog Read API (`GET /api/catalog/admin/categories`, `GET /api/catalog/admin/products`) supporting inactive category and product visibility.
+  - Admin Orders UI (`/admin/orders`): Orders list with customer `UserId` (no IdentityService lookup), status and payment status filters, server-side pagination.
+  - Admin Order Details (`/admin/orders/{id}`): Historical snapshot line items, chronological `OrderStatusHistory` timeline.
+  - Lifecycle controls (guided forward state progression `Created → Confirmed → Processing → Shipped → Completed`).
+  - Admin cancellation (`POST /api/admin/orders/{id}/cancel`) with committed stock return, cancellation state protection, and retry support.
+  - Real-time Admin updates via SignalR (`CatalogHub` stock/product updates, `OrderHub` `admins` group for order creation and state transitions).
 
 Planned / not implemented:
 
-- Admin Catalog UI (category management, product CRUD, soft-delete, stock management, image upload/delete).
-- Admin Orders UI (order lifecycle progression, admin cancellation).
 - Docker Compose.
 - Final end-to-end validation.
+- Architecture and UML diagrams.
+- Coursework final report.
+
 
 
 

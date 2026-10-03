@@ -91,6 +91,52 @@ public sealed class CatalogController : ControllerBase
     }
 
     // ==========================================
+    // Admin Read Endpoints
+    // ==========================================
+
+    /// <summary>
+    /// Returns all categories (including inactive) for administrative management. Requires Admin role.
+    /// </summary>
+    [HttpGet("admin/categories")]
+    [Authorize(Roles = CatalogRoles.Admin)]
+    [ProducesResponseType(typeof(IReadOnlyList<AdminCategoryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<AdminCategoryDto>>> GetAdminCategories(CancellationToken cancellationToken)
+    {
+        var categories = await _queryService.GetAdminCategoriesAsync(cancellationToken);
+        return Ok(categories);
+    }
+
+    /// <summary>
+    /// Returns paginated list of products (including inactive) with filtering and sorting for Admin management. Requires Admin role.
+    /// </summary>
+    [HttpGet("admin/products")]
+    [Authorize(Roles = CatalogRoles.Admin)]
+    [ProducesResponseType(typeof(PagedResult<AdminProductDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<PagedResult<AdminProductDto>>> GetAdminProducts(
+        [FromQuery] AdminProductQueryParameters query,
+        CancellationToken cancellationToken)
+    {
+        var errors = AdminProductQueryValidator.Validate(query);
+        if (errors.Count > 0)
+        {
+            return ValidationProblem(new ValidationProblemDetails(errors)
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "One or more validation errors occurred.",
+                Detail = "The admin product query parameters are invalid."
+            });
+        }
+
+        var result = await _queryService.GetAdminProductsAsync(query, cancellationToken);
+        return Ok(result);
+    }
+
+    // ==========================================
     // Admin Category Write Endpoints
     // ==========================================
 
@@ -99,6 +145,7 @@ public sealed class CatalogController : ControllerBase
     /// </summary>
     [HttpPost("categories")]
     [Authorize(Roles = CatalogRoles.Admin)]
+
     [ProducesResponseType(typeof(CategoryDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

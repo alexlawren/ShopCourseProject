@@ -1,0 +1,318 @@
+@page "/admin/orders/{id:guid}"
+@attribute [Authorize(Roles = "Admin")]
+@inject IAdminOrderApiClient AdminOrderClient
+@inject IOrderRealtimeService OrderRealtimeService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Заказ #@Id.ToString()[..8] — Администратор</PageTitle>
+
+<div class="container my-4">
+    <div class="mb-3">
+        <a href="admin/orders" class="text-decoration-none small text-muted">&larr; Ко всем заказам</a>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="small text-muted mt-2">Загрузка данных заказа...</div>
+        </div>
+    }
+    else if (_order == null)
+    {
+        <div class="alert alert-warning text-center py-4">
+            <h4>Заказ не найден</h4>
+            <p class="text-muted">Заказ с идентификатором <code>@Id</code> не существует в системе.</p>
+            <a href="admin/orders" class="btn btn-outline-primary btn-sm">Вернуться к списку заказов</a>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(_statusMessage))
+        {
+            <div class="alert @(_statusIsError ? "alert-danger" : "alert-success") alert-dismissible fade show py-2 mb-3" role="alert">
+                @_statusMessage
+                <button type="button" class="btn-close" @onclick="() => _statusMessage = null"></button>
+            </div>
+        }
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                    <div>
+                        <h1 class="h4 mb-1">Заказ #@_order.Id</h1>
+                        <div class="text-muted small">
+                            Создан: @_order.CreatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss") |
+                            Обновлен: @_order.UpdatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")
+                        </div>
+                        <div class="mt-1">
+                            <span class="text-muted small">ID Покупателя (UserId):</span>
+                            <code class="ms-1">@_order.UserId</code>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <div class="fs-4 fw-bold text-primary mb-1">
+                            @_order.TotalAmount.ToString("F2") ₽
+                        </div>
+                        <div class="d-flex gap-2 justify-content-end">
+                            <span class="@AdminOrderUiHelper.GetStatusBadgeClass(_order.Status)">
+                                @AdminOrderUiHelper.GetStatusDisplayName(_order.Status)
+                            </span>
+                            <span class="@AdminOrderUiHelper.GetPaymentStatusBadgeClass(_order.PaymentStatus)">
+                                @AdminOrderUiHelper.GetPaymentStatusDisplayName(_order.PaymentStatus)
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Панель управления жизненным циклом (Fulfillment & Cancellation) -->
+                <div class="bg-light p-3 rounded mt-3 d-flex flex-wrap align-items-center justify-content-between gap-3 border">
+                    <div>
+                        <div class="fw-semibold small">Действия администратора:</div>
+                        <div class="text-muted small">
+                            Управление текущим этапом обработки заказа и отмена при необходимости.
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2">
+                        @if (!string.IsNullOrWhiteSpace(_nextStatus))
+                        {
+                            <button class="btn btn-primary btn-sm" disabled="@_isMutating" @onclick="HandleAdvanceLifecycle">
+                                @if (_isMutating)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                @AdminOrderUiHelper.GetNextStatusActionName(_order.Status)
+                            </button>
+                        }
+
+                        @if (AdminOrderUiHelper.CanAdminCancel(_order.Status))
+                        {
+                            <button class="btn btn-outline-danger btn-sm" disabled="@_isMutating" @onclick="HandleAdminCancel">
+                                @if (_isMutating)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                Отменить заказ (Admin)
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Содержимое заказа (Historical Snapshots) -->
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-3 border-bottom">
+                        <h2 class="h5 mb-0">Позиции заказа</h2>
+                        <small class="text-muted">Исторический снимок каталога на момент оформления (Snapshot)</small>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Товар</th>
+                                    <th class="text-end">Цена за шт.</th>
+                                    <th class="text-center">Кол-во</th>
+                                    <th class="text-end">Сумма</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in _order.Items)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="fw-semibold">@item.ProductName</div>
+                                            <small class="text-muted font-monospace">@item.ProductId</small>
+                                        </td>
+                                        <td class="text-end">@item.UnitPrice.ToString("F2") ₽</td>
+                                        <td class="text-center">@item.Quantity шт.</td>
+                                        <td class="text-end fw-bold">@item.LineTotal.ToString("F2") ₽</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <th colspan="3" class="text-end">Итого:</th>
+                                    <th class="text-end text-primary fs-5">@_order.TotalAmount.ToString("F2") ₽</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- История изменения статусов -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-3 border-bottom">
+                        <h2 class="h5 mb-0">История статусов</h2>
+                    </div>
+                    <div class="card-body">
+                        @if (_order.StatusHistory.Count == 0)
+                        {
+                            <div class="text-muted small">История отсутствует</div>
+                        }
+                        else
+                        {
+                            <ul class="list-group list-group-flush">
+                                @foreach (var h in _order.StatusHistory.OrderBy(x => x.ChangedAtUtc))
+                                {
+                                    <li class="list-group-item px-0 py-2 border-0">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="@AdminOrderUiHelper.GetStatusBadgeClass(h.Status)">
+                                                @AdminOrderUiHelper.GetStatusDisplayName(h.Status)
+                                            </span>
+                                            <span class="text-muted small">
+                                                @h.ChangedAtUtc.ToLocalTime().ToString("dd.MM HH:mm:ss")
+                                            </span>
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private AdminOrderDetailsDto? _order;
+    private bool _isLoading = true;
+    private bool _isMutating;
+    private string? _statusMessage;
+    private bool _statusIsError;
+
+    private string? _nextStatus => AdminOrderUiHelper.GetNextAllowedStatus(_order?.Status);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrderDetailsAsync();
+
+        OrderRealtimeService.OnOrderStatusChanged += HandleRealtimeOrderStatusChanged;
+        OrderRealtimeService.OnPaymentStatusChanged += HandleRealtimePaymentStatusChanged;
+
+        if (OrderRealtimeService.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Disconnected)
+        {
+            await OrderRealtimeService.StartAsync();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadOrderDetailsAsync();
+    }
+
+    private async Task LoadOrderDetailsAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _order = await AdminOrderClient.GetOrderAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            _statusMessage = $"Ошибка загрузки заказа: {ex.Message}";
+            _statusIsError = true;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleAdvanceLifecycle()
+    {
+        if (_order == null || string.IsNullOrWhiteSpace(_nextStatus)) return;
+
+        _isMutating = true;
+        _statusMessage = null;
+        var result = await AdminOrderClient.UpdateStatusAsync(Id, _nextStatus);
+        _isMutating = false;
+
+        if (result.Succeeded)
+        {
+            _order = result.Value;
+            _statusMessage = $"Статус заказа успешно обновлен до '{AdminOrderUiHelper.GetStatusDisplayName(_order?.Status)}'.";
+            _statusIsError = false;
+        }
+        else
+        {
+            _statusMessage = result.ErrorMessage ?? "Ошибка при обновлении статуса заказа.";
+            _statusIsError = true;
+        }
+    }
+
+    private async Task HandleAdminCancel()
+    {
+        if (_order == null) return;
+
+        bool confirmed = await JS.InvokeAsync<bool>("confirm",
+            $"Вы уверены, что хотите отменить заказ #{Id.ToString()[..8]}? Будет произведен возврат зарезервированных товаров на склад.");
+        if (!confirmed) return;
+
+        _isMutating = true;
+        _statusMessage = null;
+        var result = await AdminOrderClient.CancelAsync(Id);
+        _isMutating = false;
+
+        if (result.Succeeded)
+        {
+            _order = result.Value;
+            _statusMessage = "Заказ успешно отменен администратором. Зарезервированные товары возвращены на склад.";
+            _statusIsError = false;
+        }
+        else
+        {
+            if (result.ErrorCode == "ORDER_CANCELLATION_IN_PROGRESS")
+            {
+                _statusMessage = "Отмена заказа уже выполняется. Повторите через несколько секунд.";
+            }
+            else
+            {
+                _statusMessage = result.ErrorMessage ?? "Ошибка при отмене заказа.";
+            }
+            _statusIsError = true;
+        }
+    }
+
+    // Realtime Handlers
+    private async void HandleRealtimeOrderStatusChanged(OrderStatusChangedEvent ev)
+    {
+        if (ev.OrderId == Id)
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadOrderDetailsAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    private async void HandleRealtimePaymentStatusChanged(PaymentStatusChangedEvent ev)
+    {
+        if (ev.OrderId == Id)
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadOrderDetailsAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        OrderRealtimeService.OnOrderStatusChanged -= HandleRealtimeOrderStatusChanged;
+        OrderRealtimeService.OnPaymentStatusChanged -= HandleRealtimePaymentStatusChanged;
+        await Task.CompletedTask;
+    }
+}

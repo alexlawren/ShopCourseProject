@@ -136,10 +136,83 @@ Returns full product details by its unique identifier.
 
 # Admin API
 
-All write endpoints in the catalog require authentication with a valid JWT token issued by IdentityService and carrying the `Admin` role (`Role = "Admin"`).
+All administrative endpoints in the catalog require authentication with a valid JWT token issued by IdentityService and carrying the `Admin` role (`Role = "Admin"`).
 Unauthorized requests return `401 Unauthorized` (missing/invalid token) or `403 Forbidden` (valid token without `Admin` role).
 
 Delete operations (`DELETE`) are **soft deletes** (`IsActive = false`, `UpdatedAtUtc = UtcNow`). Records are never physically deleted from the database in order to preserve audit history and relational integrity.
+
+---
+
+## GET /api/catalog/admin/categories
+
+Returns all categories (both active and inactive) for administrative management.
+
+**Authentication**: Required (`Admin` role)
+
+### Responses
+- `200 OK`: Array of category objects.
+```json
+[
+  {
+    "id": "9d16d27a-90bb-4bd3-ae8f-c846c9136d0a",
+    "name": "Laptops",
+    "slug": "laptops",
+    "isActive": true,
+    "createdAtUtc": "2026-09-30T10:00:00Z",
+    "updatedAtUtc": "2026-09-30T10:00:00Z"
+  }
+]
+```
+- `401 Unauthorized`: Missing or invalid JWT.
+- `403 Forbidden`: Token lacks `Admin` role.
+
+---
+
+## GET /api/catalog/admin/products
+
+Returns a paginated list of products (including inactive / soft-deleted) with filtering by active status, category, search, and sorting.
+
+**Authentication**: Required (`Admin` role)
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `search` | string | `null` | Case-insensitive substring search matching `Name` or `Description`. |
+| `categoryId` | UUID | `null` | Filters products by Category ID. |
+| `isActive` | boolean | `null` | `true`: active products only.<br>`false`: inactive products only.<br>`null`: all products. |
+| `sort` | string | `newest` | Sort order (`newest`, `priceAsc`, `priceDesc`, `nameAsc`, `nameDesc`). |
+| `page` | integer | `1` | 1-based page index (`>= 1`). |
+| `pageSize` | integer | `20` | Items per page (`1..100`). |
+
+### Responses
+- `200 OK`: `PagedResult<AdminProductDto>`.
+```json
+{
+  "items": [
+    {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "categoryId": "9d16d27a-90bb-4bd3-ae8f-c846c9136d0a",
+      "categoryName": "Laptops",
+      "name": "Lenovo ThinkPad X1 Carbon",
+      "description": "Business laptop",
+      "price": 1500.00,
+      "stockQuantity": 10,
+      "imagePath": "/product-images/guid.png",
+      "isActive": true,
+      "createdAtUtc": "2026-09-30T10:00:00Z",
+      "updatedAtUtc": "2026-09-30T10:00:00Z"
+    }
+  ],
+  "page": 1,
+  "pageSize": 20,
+  "totalItems": 1,
+  "totalPages": 1
+}
+```
+- `400 Bad Request`: Invalid parameters.
+- `401 Unauthorized`: Missing or invalid JWT.
+- `403 Forbidden`: Token lacks `Admin` role.
 
 ---
 

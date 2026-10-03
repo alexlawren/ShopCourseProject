@@ -1,0 +1,66 @@
+@page "/admin"
+@attribute [Authorize(Roles = "Admin")]
+
+<PageTitle>Панель администратора — ShopCourseProject</PageTitle>
+
+<div class="container my-4">
+    <div class="d-flex align-items-center mb-4">
+        <h1 class="h3 mb-0">Панель администратора</h1>
+        <span class="badge bg-danger ms-3">Admin Role</span>
+    </div>
+
+    <p class="text-muted mb-4">
+        Управление каталогом товаров, складскими остатками и обработкой заказов покупателей интернет-магазина.
+    </p>
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body d-flex flex-column p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary bg-opacity-10 text-primary rounded p-3 me-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" class="bi bi-box-seam" viewBox="0 0 16 16">
+                                <path d="M8.186 1.113a.5.5 0 0 0-.372 0L1.846 3.5l2.404.961L10.404 2zm3.564 1.426L5.596 5 8 5.961 14.154 3.5zm3.25 1.7-6.5 2.6v7.922l6.5-2.6V4.24zM7.5 14.762V6.838L1 4.239v7.923zM7.443.184a1.5 1.5 0 0 1 1.114 0l7.129 2.852A.5.5 0 0 1 16 3.5v8.662a1 1 0 0 1-.629.928l-7.185 2.874a.5.5 0 0 1-.372 0L.63 13.09a1 1 0 0 1-.63-.928V3.5a.5.5 0 0 1 .314-.464z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="h5 card-title mb-1">Управление каталогом</h2>
+                            <p class="text-muted small mb-0">Категории, товары, склад и изображения</p>
+                        </div>
+                    </div>
+                    <p class="card-text text-muted flex-grow-1">
+                        Просмотр активных и неактивных категорий, создание новых категорий, добавление и редактирование товаров, мягкое удаление, корректировка складских остатков и загрузка медиафайлов.
+                    </p>
+                    <a href="admin/catalog" class="btn btn-primary mt-3">
+                        Перейти к каталогу &rarr;
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body d-flex flex-column p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-success bg-opacity-10 text-success rounded p-3 me-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" class="bi bi-receipt" viewBox="0 0 16 16">
+                                <path d="M1.92.5a.5.5 0 0 1 .5.5v13.09l1.146-.765a.5.5 0 0 1 .554 0l1.15.766 1.146-.766a.5.5 0 0 1 .554 0l1.15.766 1.146-.766a.5.5 0 0 1 .554 0l1.15.766 1.146-.766a.5.5 0 0 1 .554 0l1.15.766 1.146-.766a.5.5 0 0 1 .554 0l1.15.766 1.146-.766a.5.5 0 0 1 .554 0L14 14.09V1a.5.5 0 0 1 .5-.5h.5a.5.5 0 0 1 .5.5v14.5a.5.5 0 0 1-.777.416L13.5 15.23l-1.146.764a.5.5 0 0 1-.554 0L10.65 15.23l-1.146.764a.5.5 0 0 1-.554 0L7.8 15.23l-1.146.764a.5.5 0 0 1-.554 0L5 15.23l-1.146.764a.5.5 0 0 1-.554 0L2.15 15.23l-1.146.764A.5.5 0 0 1 .5 15.5V1a.5.5 0 0 1 .5-.5z"/>
+                                <path d="M3 4.5a.5.5 0 0 1 .5-.5h6a.5.5 0 1 1 0 1h-6a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h6a.5.5 0 1 1 0 1h-6a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h6a.5.5 0 1 1 0 1h-6a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5m8-6a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 0 1h-1a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 0 1h-1a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 0 1h-1a.5.5 0 0 1-.5-.5"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="h5 card-title mb-1">Управление заказами</h2>
+                            <p class="text-muted small mb-0">Фулфилмент, жизненный цикл и отмена</p>
+                        </div>
+                    </div>
+                    <p class="card-text text-muted flex-grow-1">
+                        Просмотр всех заказов пользователей с фильтрацией по статусам и оплате, перевод статусов по пайплайну (Confirmed &rarr; Processing &rarr; Shipped &rarr; Completed) и безопасная административная отмена с возвратом остатков.
+                    </p>
+                    <a href="admin/orders" class="btn btn-success mt-3">
+                        Перейти к заказам &rarr;
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

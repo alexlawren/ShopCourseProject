@@ -1,0 +1,1208 @@
+@page "/admin/catalog"
+@attribute [Authorize(Roles = "Admin")]
+@inject IAdminCatalogApiClient AdminCatalogClient
+@inject ICatalogApiClient CatalogClient
+@inject ICatalogRealtimeService CatalogRealtimeService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Управление каталогом — Администратор</PageTitle>
+
+<div class="container my-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h3 mb-0">Управление каталогом</h1>
+            <small class="text-muted">Категории, товары, складские остатки и медиа</small>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-dark border">
+                Каталог Realtime:
+                @if (CatalogRealtimeService.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected)
+                {
+                    <span class="text-success fw-bold">● Подключено</span>
+                }
+                else
+                {
+                    <span class="text-muted">Подключение...</span>
+                }
+            </span>
+            <a href="admin" class="btn btn-outline-secondary btn-sm">В панель</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_statusMessage))
+    {
+        <div class="alert @(_statusIsError ? "alert-danger" : "alert-success") alert-dismissible fade show py-2 mb-3" role="alert">
+            @_statusMessage
+            <button type="button" class="btn-close" @onclick="() => _statusMessage = null"></button>
+        </div>
+    }
+
+    <!-- Навигационные вкладки -->
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "products" ? "active fw-bold" : "")"
+                    @onclick='() => SetTab("products")'>
+                Товары (@(_productsResult?.TotalCount ?? 0))
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "categories" ? "active fw-bold" : "")"
+                    @onclick='() => SetTab("categories")'>
+                Категории (@_categories.Count)
+            </button>
+        </li>
+    </ul>
+
+    @if (_activeTab == "categories")
+    {
+        <!-- УПРАВЛЕНИЕ КАТЕГОРИЯМИ -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 mb-0">Категории каталога</h2>
+            <button class="btn btn-primary btn-sm" @onclick="OpenCreateCategoryModal">
+                + Добавить категорию
+            </button>
+        </div>
+
+        @if (_isLoadingCategories)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <div class="small text-muted mt-2">Загрузка категорий...</div>
+            </div>
+        }
+        else if (_categories.Count == 0)
+        {
+            <div class="alert alert-info">В каталоге пока нет ни одной категории.</div>
+        }
+        else
+        {
+            <div class="table-responsive bg-white rounded shadow-sm border">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Название</th>
+                            <th>Slug (URL)</th>
+                            <th>Статус</th>
+                            <th>Создана</th>
+                            <th class="text-end">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cat in _categories)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@cat.Name</td>
+                                <td><code>@cat.Slug</code></td>
+                                <td>
+                                    @if (cat.IsActive)
+                                    {
+                                        <span class="badge bg-success">Активна</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">Неактивна</span>
+                                    }
+                                </td>
+                                <td class="text-muted small">@cat.CreatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-secondary btn-sm me-1"
+                                            @onclick="() => OpenEditCategoryModal(cat)"
+                                            title="Редактировать">
+                                        Изменить
+                                    </button>
+                                    @if (cat.IsActive)
+                                    {
+                                        <button class="btn btn-outline-danger btn-sm"
+                                                @onclick="() => HandleDeactivateCategory(cat)"
+                                                title="Деактивировать">
+                                            Деактивировать
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-outline-success btn-sm"
+                                                @onclick="() => HandleReactivateCategory(cat)"
+                                                title="Активировать">
+                                            Активировать
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    else
+    {
+        <!-- УПРАВЛЕНИЕ ТОВАРАМИ -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 mb-0">Список товаров</h2>
+            <button class="btn btn-primary btn-sm" @onclick="OpenCreateProductModal">
+                + Добавить товар
+            </button>
+        </div>
+
+        <!-- Фильтры товаров -->
+        <div class="card border-0 shadow-sm p-3 mb-4 bg-light">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Поиск</label>
+                    <input type="text" class="form-control form-control-sm" placeholder="Название или описание..."
+                           @bind="_searchQuery" @bind:event="oninput" @onkeyup="HandleSearchKeyUp" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Категория</label>
+                    <select class="form-select form-select-sm" @bind="_filterCategoryIdString" @bind:after="ApplyProductFilters">
+                        <option value="">Все категории</option>
+                        @foreach (var c in _categories)
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Статус</label>
+                    <select class="form-select form-select-sm" @bind="_filterActiveString" @bind:after="ApplyProductFilters">
+                        <option value="">Все статусы</option>
+                        <option value="true">Только активные</option>
+                        <option value="false">Только неактивные</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Сортировка</label>
+                    <select class="form-select form-select-sm" @bind="_sortQuery" @bind:after="ApplyProductFilters">
+                        <option value="newest">Сначала новые</option>
+                        <option value="priceAsc">Сначала дешевле</option>
+                        <option value="priceDesc">Сначала дороже</option>
+                        <option value="nameAsc">По названию (А-Я)</option>
+                        <option value="nameDesc">По названию (Я-А)</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex gap-2">
+                    <button class="btn btn-outline-primary btn-sm flex-grow-1" @onclick="ApplyProductFilters">
+                        Найти
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ResetProductFilters" title="Сбросить">
+                        Сброс
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if (_isLoadingProducts)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <div class="small text-muted mt-2">Загрузка товаров...</div>
+            </div>
+        }
+        else if (_productsResult == null || _productsResult.Items.Count == 0)
+        {
+            <div class="alert alert-info">Товары не найдены. Измените параметры фильтрации или создайте новый товар.</div>
+        }
+        else
+        {
+            <div class="table-responsive bg-white rounded shadow-sm border">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 70px;">Фото</th>
+                            <th>Название</th>
+                            <th>Категория</th>
+                            <th>Цена</th>
+                            <th>Склад</th>
+                            <th>Статус</th>
+                            <th class="text-end">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var prod in _productsResult.Items)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center justify-content-center bg-light rounded" style="width: 50px; height: 50px; overflow: hidden;">
+                                        @if (!string.IsNullOrWhiteSpace(prod.ImagePath))
+                                        {
+                                            <img src="@CatalogClient.GetImageUrl(prod.ImagePath)" alt="@prod.Name" class="img-fluid mh-100" />
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted" style="font-size: 0.65rem;">Нет</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold">@prod.Name</div>
+                                    @if (!string.IsNullOrWhiteSpace(prod.Description))
+                                    {
+                                        <div class="text-muted small text-truncate" style="max-width: 250px;">@prod.Description</div>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">@prod.CategoryName</span>
+                                </td>
+                                <td class="fw-bold">@prod.Price.ToString("F2") ₽</td>
+                                <td>
+                                    <span class="badge @(prod.StockQuantity > 0 ? "bg-info text-dark" : "bg-danger")">
+                                        @prod.StockQuantity шт.
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (prod.IsActive)
+                                    {
+                                        <span class="badge bg-success">Активен</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Неактивен</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-secondary" @onclick="() => OpenEditProductModal(prod)" title="Редактировать товар">
+                                            Изменить
+                                        </button>
+                                        <button class="btn btn-outline-primary" @onclick="() => OpenStockModal(prod)" title="Изменить остаток">
+                                            Склад
+                                        </button>
+                                        <button class="btn btn-outline-info" @onclick="() => OpenImageModal(prod)" title="Управление фото">
+                                            Фото
+                                        </button>
+                                        @if (prod.IsActive)
+                                        {
+                                            <button class="btn btn-outline-danger" @onclick="() => HandleDeactivateProduct(prod)" title="Деактивировать">
+                                                Удалить
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-outline-success" @onclick="() => HandleReactivateProduct(prod)" title="Активировать">
+                                                Вернуть
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Пагинация -->
+            @if (_productsResult.TotalPages > 1)
+            {
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <span class="text-muted small">
+                        Страница @_productsResult.Page из @_productsResult.TotalPages (всего @_productsResult.TotalCount)
+                    </span>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" disabled="@(_productsResult.Page <= 1)"
+                                @onclick="() => LoadProductsPage(_productsResult.Page - 1)">
+                            &larr; Назад
+                        </button>
+                        <button class="btn btn-outline-secondary" disabled="@(_productsResult.Page >= _productsResult.TotalPages)"
+                                @onclick="() => LoadProductsPage(_productsResult.Page + 1)">
+                            Вперёд &rarr;
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+    }
+</div>
+
+<!-- МОДАЛЬНОЕ ОКНО: СОЗДАНИЕ КАТЕГОРИИ -->
+@if (_showCreateCategoryModal)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Создание категории</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModals"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_modalError</div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Название категории *</label>
+                        <input type="text" class="form-control" @bind="_newCategory.Name" placeholder="Ноутбуки" maxlength="120" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Slug (URL) *</label>
+                        <input type="text" class="form-control" @bind="_newCategory.Slug" placeholder="laptops" maxlength="140" />
+                        <div class="form-text small">Только латинские буквы в нижнем регистре, цифры и дефис (например: gaming-laptops).</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseModals">Отмена</button>
+                    <button type="button" class="btn btn-primary btn-sm" disabled="@_isSaving" @onclick="HandleCreateCategory">
+                        @if (_isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Создать
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- МОДАЛЬНОЕ ОКНО: РЕДАКТИРОВАНИЕ КАТЕГОРИИ -->
+@if (_showEditCategoryModal && _selectedCategory != null)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Редактирование категории</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModals"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_modalError</div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Название категории *</label>
+                        <input type="text" class="form-control" @bind="_editCategory.Name" maxlength="120" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Slug (URL) *</label>
+                        <input type="text" class="form-control" @bind="_editCategory.Slug" maxlength="140" />
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="catActiveCheck" @bind="_editCategory.IsActive" />
+                        <label class="form-check-label" for="catActiveCheck">
+                            Активна (отображается в каталоге)
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseModals">Отмена</button>
+                    <button type="button" class="btn btn-primary btn-sm" disabled="@_isSaving" @onclick="HandleUpdateCategory">
+                        @if (_isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Сохранить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- МОДАЛЬНОЕ ОКНО: СОЗДАНИЕ ТОВАРА -->
+@if (_showCreateProductModal)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Добавление товара</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModals"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_modalError</div>
+                    }
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Категория *</label>
+                            <select class="form-select" @bind="_newProductCategoryIdString">
+                                <option value="">-- Выберите категорию --</option>
+                                @foreach (var c in _categories.Where(x => x.IsActive))
+                                {
+                                    <option value="@c.Id">@c.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Название товара *</label>
+                            <input type="text" class="form-control" @bind="_newProduct.Name" maxlength="200" placeholder="Lenovo ThinkPad X1" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Описание</label>
+                            <textarea class="form-control" rows="3" @bind="_newProduct.Description" maxlength="4000" placeholder="Подробное описание характеристик..."></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Цена (руб.) *</label>
+                            <input type="number" step="0.01" min="0" class="form-control" @bind="_newProduct.Price" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Начальный остаток на складе *</label>
+                            <input type="number" min="0" class="form-control" @bind="_newProduct.StockQuantity" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseModals">Отмена</button>
+                    <button type="button" class="btn btn-primary btn-sm" disabled="@_isSaving" @onclick="HandleCreateProduct">
+                        @if (_isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Создать товар
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- МОДАЛЬНОЕ ОКНО: РЕДАКТИРОВАНИЕ ТОВАРА -->
+@if (_showEditProductModal && _selectedProduct != null)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Редактирование товара</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModals"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_modalError</div>
+                    }
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Категория *</label>
+                            <select class="form-select" @bind="_editProductCategoryIdString">
+                                @foreach (var c in _categories)
+                                {
+                                    <option value="@c.Id">@c.Name @(c.IsActive ? "" : " (Неактивна)")</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Название товара *</label>
+                            <input type="text" class="form-control" @bind="_editProduct.Name" maxlength="200" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Описание</label>
+                            <textarea class="form-control" rows="3" @bind="_editProduct.Description" maxlength="4000"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Цена (руб.) *</label>
+                            <input type="number" step="0.01" min="0" class="form-control" @bind="_editProduct.Price" />
+                        </div>
+                        <div class="col-md-6 d-flex align-items-center pt-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="prodActiveCheck" @bind="_editProduct.IsActive" />
+                                <label class="form-check-label" for="prodActiveCheck">
+                                    Активен (доступен покупателям)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseModals">Отмена</button>
+                    <button type="button" class="btn btn-primary btn-sm" disabled="@_isSaving" @onclick="HandleUpdateProduct">
+                        @if (_isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Сохранить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- МОДАЛЬНОЕ ОКНО: ИЗМЕНЕНИЕ ОСТАТКА НА СКЛАДЕ -->
+@if (_showStockModal && _selectedProduct != null)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Складской остаток</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModals"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_modalError</div>
+                    }
+                    <p class="mb-2">Товар: <strong>@_selectedProduct.Name</strong></p>
+                    <p class="text-muted small mb-3">Текущий остаток: @_selectedProduct.StockQuantity шт.</p>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Новое абсолютное количество *</label>
+                        <input type="number" min="0" class="form-control" @bind="_targetStockQuantity" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseModals">Отмена</button>
+                    <button type="button" class="btn btn-primary btn-sm" disabled="@_isSaving" @onclick="HandleUpdateStock">
+                        @if (_isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Установить остаток
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- МОДАЛЬНОЕ ОКНО: УПРАВЛЕНИЕ ИЗОБРАЖЕНИЕМ -->
+@if (_showImageModal && _selectedProduct != null)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Изображение товара</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModals"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_modalError</div>
+                    }
+                    <p class="mb-2">Товар: <strong>@_selectedProduct.Name</strong></p>
+                    
+                    <div class="text-center my-3 p-3 bg-light rounded">
+                        @if (!string.IsNullOrWhiteSpace(_selectedProduct.ImagePath))
+                        {
+                            <img src="@CatalogClient.GetImageUrl(_selectedProduct.ImagePath)" alt="@_selectedProduct.Name" class="img-fluid rounded mb-2" style="max-height: 180px;" />
+                            <div>
+                                <button type="button" class="btn btn-outline-danger btn-sm" disabled="@_isSaving" @onclick="HandleDeleteImage">
+                                    Удалить текущее фото
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted small py-3">Изображение не загружено</div>
+                        }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Загрузить новое фото</label>
+                        <InputFile OnChange="HandleFileSelected" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp" />
+                        <div class="form-text small">Разрешены форматы JPEG, PNG, WEBP. Максимальный размер 5 МБ.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseModals">Закрыть</button>
+                    <button type="button" class="btn btn-primary btn-sm" disabled="@(_isSaving || _selectedFile == null)" @onclick="HandleUploadImage">
+                        @if (_isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Загрузить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string _activeTab = "products";
+    private string? _statusMessage;
+    private bool _statusIsError;
+
+    // Категории
+    private List<AdminCategoryDto> _categories = [];
+    private bool _isLoadingCategories = true;
+
+    // Товары
+    private PagedResult<AdminProductDto>? _productsResult;
+    private bool _isLoadingProducts = true;
+    private string? _searchQuery;
+    private string? _filterCategoryIdString;
+    private string? _filterActiveString;
+    private string _sortQuery = "newest";
+    private int _currentPage = 1;
+
+    // Модальные окна
+    private bool _showCreateCategoryModal;
+    private bool _showEditCategoryModal;
+    private AdminCategoryDto? _selectedCategory;
+    private CreateCategoryRequest _newCategory = new();
+    private UpdateCategoryRequest _editCategory = new();
+
+    private bool _showCreateProductModal;
+    private bool _showEditProductModal;
+    private AdminProductDto? _selectedProduct;
+    private CreateProductRequest _newProduct = new();
+    private string? _newProductCategoryIdString;
+    private UpdateProductRequest _editProduct = new();
+    private string? _editProductCategoryIdString;
+
+    private bool _showStockModal;
+    private int _targetStockQuantity;
+
+    private bool _showImageModal;
+    private IBrowserFile? _selectedFile;
+
+    private string? _modalError;
+    private bool _isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategoriesAsync();
+        await LoadProductsAsync();
+
+        CatalogRealtimeService.OnStockChanged += HandleRealtimeStockChanged;
+        CatalogRealtimeService.OnProductChanged += HandleRealtimeProductChanged;
+
+        if (CatalogRealtimeService.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Disconnected)
+        {
+            await CatalogRealtimeService.StartAsync();
+        }
+    }
+
+    private void SetTab(string tab)
+    {
+        _activeTab = tab;
+        _statusMessage = null;
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        _isLoadingCategories = true;
+        try
+        {
+            var cats = await AdminCatalogClient.GetCategoriesAsync();
+            _categories = cats.ToList();
+        }
+        catch (Exception ex)
+        {
+            _statusMessage = $"Ошибка загрузки категорий: {ex.Message}";
+            _statusIsError = true;
+        }
+        finally
+        {
+            _isLoadingCategories = false;
+        }
+    }
+
+    private async Task LoadProductsAsync(int page = 1)
+    {
+        _isLoadingProducts = true;
+        _currentPage = page;
+        try
+        {
+            Guid? catId = Guid.TryParse(_filterCategoryIdString, out var cid) ? cid : null;
+            bool? isActive = bool.TryParse(_filterActiveString, out var act) ? act : null;
+
+            _productsResult = await AdminCatalogClient.GetProductsAsync(
+                page: page,
+                pageSize: 15,
+                search: _searchQuery,
+                categoryId: catId,
+                isActive: isActive,
+                sort: _sortQuery);
+        }
+        catch (Exception ex)
+        {
+            _statusMessage = $"Ошибка загрузки товаров: {ex.Message}";
+            _statusIsError = true;
+        }
+        finally
+        {
+            _isLoadingProducts = false;
+        }
+    }
+
+    private async Task ApplyProductFilters()
+    {
+        await LoadProductsAsync(1);
+    }
+
+    private async Task HandleSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await ApplyProductFilters();
+        }
+    }
+
+    private async Task ResetProductFilters()
+    {
+        _searchQuery = null;
+        _filterCategoryIdString = null;
+        _filterActiveString = null;
+        _sortQuery = "newest";
+        await ApplyProductFilters();
+    }
+
+    private async Task LoadProductsPage(int page)
+    {
+        await LoadProductsAsync(page);
+    }
+
+    // Категории: создание/редактирование
+    private void OpenCreateCategoryModal()
+    {
+        _modalError = null;
+        _newCategory = new CreateCategoryRequest();
+        _showCreateCategoryModal = true;
+    }
+
+    private void OpenEditCategoryModal(AdminCategoryDto cat)
+    {
+        _modalError = null;
+        _selectedCategory = cat;
+        _editCategory = new UpdateCategoryRequest
+        {
+            Name = cat.Name,
+            Slug = cat.Slug,
+            IsActive = cat.IsActive
+        };
+        _showEditCategoryModal = true;
+    }
+
+    private void CloseModals()
+    {
+        _showCreateCategoryModal = false;
+        _showEditCategoryModal = false;
+        _showCreateProductModal = false;
+        _showEditProductModal = false;
+        _showStockModal = false;
+        _showImageModal = false;
+        _selectedCategory = null;
+        _selectedProduct = null;
+        _selectedFile = null;
+        _modalError = null;
+    }
+
+    private async Task HandleCreateCategory()
+    {
+        if (string.IsNullOrWhiteSpace(_newCategory.Name))
+        {
+            _modalError = "Название категории обязательно.";
+            return;
+        }
+
+        if (!AdminCatalogValidatorHelper.IsValidSlug(_newCategory.Slug))
+        {
+            _modalError = "Slug должен содержать только строчные латинские буквы, цифры и дефис (например: laptops).";
+            return;
+        }
+
+        _isSaving = true;
+        _modalError = null;
+        var result = await AdminCatalogClient.CreateCategoryAsync(_newCategory);
+        _isSaving = false;
+
+        if (result.Succeeded)
+        {
+            _statusMessage = $"Категория '{_newCategory.Name}' успешно создана.";
+            _statusIsError = false;
+            CloseModals();
+            await LoadCategoriesAsync();
+        }
+        else
+        {
+            _modalError = result.ErrorMessage ?? "Ошибка при создании категории.";
+        }
+    }
+
+    private async Task HandleUpdateCategory()
+    {
+        if (_selectedCategory == null) return;
+
+        if (string.IsNullOrWhiteSpace(_editCategory.Name))
+        {
+            _modalError = "Название категории обязательно.";
+            return;
+        }
+
+        if (!AdminCatalogValidatorHelper.IsValidSlug(_editCategory.Slug))
+        {
+            _modalError = "Slug должен содержать только строчные латинские буквы, цифры и дефис.";
+            return;
+        }
+
+        _isSaving = true;
+        _modalError = null;
+        var result = await AdminCatalogClient.UpdateCategoryAsync(_selectedCategory.Id, _editCategory);
+        _isSaving = false;
+
+        if (result.Succeeded)
+        {
+            _statusMessage = $"Категория '{_editCategory.Name}' успешно обновлена.";
+            _statusIsError = false;
+            CloseModals();
+            await LoadCategoriesAsync();
+        }
+        else
+        {
+            _modalError = result.ErrorMessage ?? "Ошибка при обновлении категории.";
+        }
+    }
+
+    private async Task HandleDeactivateCategory(AdminCategoryDto cat)
+    {
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Деактивировать категорию '{cat.Name}'?");
+        if (!confirmed) return;
+
+        var result = await AdminCatalogClient.DeleteCategoryAsync(cat.Id);
+        if (result.Succeeded)
+        {
+            _statusMessage = $"Категория '{cat.Name}' деактивирована.";
+            _statusIsError = false;
+            await LoadCategoriesAsync();
+        }
+        else
+        {
+            _statusMessage = result.ErrorMessage ?? "Ошибка при деактивации категории.";
+            _statusIsError = true;
+        }
+    }
+
+    private async Task HandleReactivateCategory(AdminCategoryDto cat)
+    {
+        var result = await AdminCatalogClient.UpdateCategoryAsync(cat.Id, new UpdateCategoryRequest
+        {
+            Name = cat.Name,
+            Slug = cat.Slug,
+            IsActive = true
+        });
+
+        if (result.Succeeded)
+        {
+            _statusMessage = $"Категория '{cat.Name}' повторно активирована.";
+            _statusIsError = false;
+            await LoadCategoriesAsync();
+        }
+        else
+        {
+            _statusMessage = result.ErrorMessage ?? "Ошибка при активации категории.";
+            _statusIsError = true;
+        }
+    }
+
+    // Товары: создание/редактирование
+    private void OpenCreateProductModal()
+    {
+        _modalError = null;
+        _newProduct = new CreateProductRequest { Price = 100, StockQuantity = 10 };
+        _newProductCategoryIdString = _categories.FirstOrDefault(c => c.IsActive)?.Id.ToString();
+        _showCreateProductModal = true;
+    }
+
+    private void OpenEditProductModal(AdminProductDto prod)
+    {
+        _modalError = null;
+        _selectedProduct = prod;
+        _editProduct = new UpdateProductRequest
+        {
+            CategoryId = prod.CategoryId,
+            Name = prod.Name,
+            Description = prod.Description,
+            Price = prod.Price,
+            IsActive = prod.IsActive
+        };
+        _editProductCategoryIdString = prod.CategoryId.ToString();
+        _showEditProductModal = true;
+    }
+
+    private async Task HandleCreateProduct()
+    {
+        if (!Guid.TryParse(_newProductCategoryIdString, out var categoryId))
+        {
+            _modalError = "Выберите категорию товара.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_newProduct.Name))
+        {
+            _modalError = "Название товара обязательно.";
+            return;
+        }
+
+        if (!AdminCatalogValidatorHelper.IsValidPrice(_newProduct.Price))
+        {
+            _modalError = "Цена товара не может быть отрицательной.";
+            return;
+        }
+
+        if (!AdminCatalogValidatorHelper.IsValidStock(_newProduct.StockQuantity))
+        {
+            _modalError = "Остаток на складе не может быть отрицательным.";
+            return;
+        }
+
+        _newProduct.CategoryId = categoryId;
+        _isSaving = true;
+        _modalError = null;
+        var result = await AdminCatalogClient.CreateProductAsync(_newProduct);
+        _isSaving = false;
+
+        if (result.Succeeded)
+        {
+            _statusMessage = $"Товар '{_newProduct.Name}' успешно добавлен.";
+            _statusIsError = false;
+            CloseModals();
+            await LoadProductsAsync(1);
+        }
+        else
+        {
+            _modalError = result.ErrorMessage ?? "Ошибка при создании товара.";
+        }
+    }
+
+    private async Task HandleUpdateProduct()
+    {
+        if (_selectedProduct == null) return;
+
+        if (!Guid.TryParse(_editProductCategoryIdString, out var categoryId))
+        {
+            _modalError = "Выберите категорию товара.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_editProduct.Name))
+        {
+            _modalError = "Название товара обязательно.";
+            return;
+        }
+
+        if (!AdminCatalogValidatorHelper.IsValidPrice(_editProduct.Price))
+        {
+            _modalError = "Цена товара не может быть отрицательной.";
+            return;
+        }
+
+        _editProduct.CategoryId = categoryId;
+        _isSaving = true;
+        _modalError = null;
+        var result = await AdminCatalogClient.UpdateProductAsync(_selectedProduct.Id, _editProduct);
+        _isSaving = false;
+
+        if (result.Succeeded)
+        {
+            _statusMessage = $"Товар '{_editProduct.Name}' успешно обновлен.";
+            _statusIsError = false;
+            CloseModals();
+            await LoadProductsAsync(_currentPage);
+        }
+        else
+        {
+            _modalError = result.ErrorMessage ?? "Ошибка при обновлении товара.";
+        }
+    }
+
+    private async Task HandleDeactivateProduct(AdminProductDto prod)
+    {
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Деактивировать товар '{prod.Name}'?");
+        if (!confirmed) return;
+
+        var result = await AdminCatalogClient.DeleteProductAsync(prod.Id);
+        if (result.Succeeded)
+        {
+            _statusMessage = $"Товар '{prod.Name}' деактивирован.";
+            _statusIsError = false;
+            await LoadProductsAsync(_currentPage);
+        }
+        else
+        {
+            _statusMessage = result.ErrorMessage ?? "Ошибка при деактивации товара.";
+            _statusIsError = true;
+        }
+    }
+
+    private async Task HandleReactivateProduct(AdminProductDto prod)
+    {
+        var result = await AdminCatalogClient.UpdateProductAsync(prod.Id, new UpdateProductRequest
+        {
+            CategoryId = prod.CategoryId,
+            Name = prod.Name,
+            Description = prod.Description,
+            Price = prod.Price,
+            IsActive = true
+        });
+
+        if (result.Succeeded)
+        {
+            _statusMessage = $"Товар '{prod.Name}' активирован.";
+            _statusIsError = false;
+            await LoadProductsAsync(_currentPage);
+        }
+        else
+        {
+            _statusMessage = result.ErrorMessage ?? "Ошибка при активации товара.";
+            _statusIsError = true;
+        }
+    }
+
+    // Склад
+    private void OpenStockModal(AdminProductDto prod)
+    {
+        _modalError = null;
+        _selectedProduct = prod;
+        _targetStockQuantity = prod.StockQuantity;
+        _showStockModal = true;
+    }
+
+    private async Task HandleUpdateStock()
+    {
+        if (_selectedProduct == null) return;
+
+        if (!AdminCatalogValidatorHelper.IsValidStock(_targetStockQuantity))
+        {
+            _modalError = "Остаток на складе не может быть отрицательным.";
+            return;
+        }
+
+        _isSaving = true;
+        _modalError = null;
+        var result = await AdminCatalogClient.UpdateStockAsync(_selectedProduct.Id, _targetStockQuantity);
+        _isSaving = false;
+
+        if (result.Succeeded)
+        {
+            _statusMessage = $"Остаток товара '{_selectedProduct.Name}' обновлен до {_targetStockQuantity} шт.";
+            _statusIsError = false;
+            _selectedProduct.StockQuantity = _targetStockQuantity;
+            CloseModals();
+            await LoadProductsAsync(_currentPage);
+        }
+        else
+        {
+            _modalError = result.ErrorMessage ?? "Ошибка при обновлении остатка.";
+        }
+    }
+
+    // Изображения
+    private void OpenImageModal(AdminProductDto prod)
+    {
+        _modalError = null;
+        _selectedProduct = prod;
+        _selectedFile = null;
+        _showImageModal = true;
+    }
+
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        _modalError = null;
+        _selectedFile = e.File;
+        if (_selectedFile != null)
+        {
+            if (!AdminCatalogValidatorHelper.ValidateImage(_selectedFile.Name, _selectedFile.ContentType, _selectedFile.Size, out var error))
+            {
+                _modalError = error;
+                _selectedFile = null;
+            }
+        }
+    }
+
+    private async Task HandleUploadImage()
+    {
+        if (_selectedProduct == null || _selectedFile == null) return;
+
+        if (!AdminCatalogValidatorHelper.ValidateImage(_selectedFile.Name, _selectedFile.ContentType, _selectedFile.Size, out var error))
+        {
+            _modalError = error;
+            return;
+        }
+
+        _isSaving = true;
+        _modalError = null;
+
+        try
+        {
+            using var stream = _selectedFile.OpenReadStream(maxAllowedSize: AdminCatalogValidatorHelper.MaxImageSizeBytes);
+            var result = await AdminCatalogClient.UploadImageAsync(
+                _selectedProduct.Id,
+                stream,
+                _selectedFile.Name,
+                _selectedFile.ContentType);
+
+            _isSaving = false;
+            if (result.Succeeded)
+            {
+                _selectedProduct.ImagePath = result.Value;
+                _statusMessage = "Изображение товара успешно загружено.";
+                _statusIsError = false;
+                CloseModals();
+                await LoadProductsAsync(_currentPage);
+            }
+            else
+            {
+                _modalError = result.ErrorMessage ?? "Ошибка загрузки изображения.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _isSaving = false;
+            _modalError = $"Исключение при передаче файла: {ex.Message}";
+        }
+    }
+
+    private async Task HandleDeleteImage()
+    {
+        if (_selectedProduct == null) return;
+
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", "Удалить изображение товара?");
+        if (!confirmed) return;
+
+        _isSaving = true;
+        _modalError = null;
+        var result = await AdminCatalogClient.DeleteImageAsync(_selectedProduct.Id);
+        _isSaving = false;
+
+        if (result.Succeeded)
+        {
+            _selectedProduct.ImagePath = null;
+            _statusMessage = "Изображение товара удалено.";
+            _statusIsError = false;
+            CloseModals();
+            await LoadProductsAsync(_currentPage);
+        }
+        else
+        {
+            _modalError = result.ErrorMessage ?? "Ошибка при удалении изображения.";
+        }
+    }
+
+    // Realtime Handlers
+    private async void HandleRealtimeStockChanged(StockChangedEvent ev)
+    {
+        await InvokeAsync(() =>
+        {
+            if (_productsResult != null)
+            {
+                var prod = _productsResult.Items.FirstOrDefault(p => p.Id == ev.ProductId);
+                if (prod != null)
+                {
+                    prod.StockQuantity = ev.StockQuantity;
+                    StateHasChanged();
+                }
+            }
+        });
+    }
+
+    private async void HandleRealtimeProductChanged(ProductChangedEvent ev)
+    {
+        await InvokeAsync(async () =>
+        {
+            await LoadProductsAsync(_currentPage);
+            StateHasChanged();
+        });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        CatalogRealtimeService.OnStockChanged -= HandleRealtimeStockChanged;
+        CatalogRealtimeService.OnProductChanged -= HandleRealtimeProductChanged;
+        await Task.CompletedTask;
+    }
+}
