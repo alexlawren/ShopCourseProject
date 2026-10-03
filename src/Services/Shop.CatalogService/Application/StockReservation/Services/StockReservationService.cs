@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Shop.CatalogService.Application.Catalog.Notifications;
 using Shop.CatalogService.Application.StockReservation.Models;
 using Shop.CatalogService.Domain.Entities;
 using Shop.CatalogService.Domain.Enums;
@@ -10,10 +11,14 @@ namespace Shop.CatalogService.Application.StockReservation.Services;
 public sealed class StockReservationService : IStockReservationService
 {
     private readonly CatalogDbContext _dbContext;
+    private readonly ICatalogNotificationService _notificationService;
 
-    public StockReservationService(CatalogDbContext dbContext)
+    public StockReservationService(
+        CatalogDbContext dbContext,
+        ICatalogNotificationService notificationService)
     {
         _dbContext = dbContext;
+        _notificationService = notificationService;
     }
 
     public async Task<ReserveStockResult> ReserveStockAsync(
@@ -158,6 +163,19 @@ public sealed class StockReservationService : IStockReservationService
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+
+            var updatedProducts = await _dbContext.Products
+                .AsNoTracking()
+                .Where(p => productIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.StockQuantity, p.UpdatedAtUtc })
+                .ToListAsync(cancellationToken);
+
+            foreach (var p in updatedProducts)
+            {
+                await _notificationService.NotifyStockChangedAsync(
+                    new StockChangedEvent(p.Id, p.StockQuantity, p.UpdatedAtUtc),
+                    cancellationToken);
+            }
         }
         catch (DbUpdateException)
         {
@@ -221,6 +239,21 @@ public sealed class StockReservationService : IStockReservationService
             }
 
             await transaction.CommitAsync(cancellationToken);
+
+            var releasedProductIds = items.Select(i => i.ProductId).Distinct().ToList();
+            var updatedProducts = await _dbContext.Products
+                .AsNoTracking()
+                .Where(p => releasedProductIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.StockQuantity, p.UpdatedAtUtc })
+                .ToListAsync(cancellationToken);
+
+            foreach (var p in updatedProducts)
+            {
+                await _notificationService.NotifyStockChangedAsync(
+                    new StockChangedEvent(p.Id, p.StockQuantity, p.UpdatedAtUtc),
+                    cancellationToken);
+            }
+
             return new ReleaseReservationResult(ReleaseResultStatus.Success, "Reservation released successfully.");
         }
 
@@ -326,6 +359,21 @@ public sealed class StockReservationService : IStockReservationService
             }
 
             await transaction.CommitAsync(cancellationToken);
+
+            var cancelledProductIds = items.Select(i => i.ProductId).Distinct().ToList();
+            var updatedProducts = await _dbContext.Products
+                .AsNoTracking()
+                .Where(p => cancelledProductIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.StockQuantity, p.UpdatedAtUtc })
+                .ToListAsync(cancellationToken);
+
+            foreach (var p in updatedProducts)
+            {
+                await _notificationService.NotifyStockChangedAsync(
+                    new StockChangedEvent(p.Id, p.StockQuantity, p.UpdatedAtUtc),
+                    cancellationToken);
+            }
+
             return new CancelCommittedReservationResult(CancelCommittedResultStatus.Success, "Committed reservation cancelled and stock restored successfully.");
         }
 

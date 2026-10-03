@@ -12,6 +12,14 @@
 
 ## Communication
 
+Interaction patterns:
+
+1. **External request/response**: REST + JSON (Client ↔ Services / Gateway).
+2. **Internal service-to-service**: gRPC + HTTP/2 (`Shop.OrderService` ↔ `Shop.CatalogService` stock reservation).
+3. **Server push**: SignalR + WebSocket (realtime notifications from services to connected clients).
+   - `OrderHub`: authenticated connections; partitioned by `user:{userId}` and `admins` groups.
+   - `CatalogHub`: public connections; broadcast catalog and stock updates to `Clients.All`.
+
 ```
 Browser
   └─► Shop.Gateway          HTTPS / REST / JSON
@@ -21,8 +29,8 @@ Browser
 
 Shop.OrderService ──────────► Shop.CatalogService   gRPC (stock reservation)
 
-Shop.CatalogService ─────────► Browser              SignalR / WebSocket (realtime)
-Shop.OrderService   ─────────► Browser              SignalR / WebSocket (realtime)
+Shop.CatalogService ─────────► Browser              SignalR / WebSocket (public catalog/stock)
+Shop.OrderService   ─────────► Browser              SignalR / WebSocket (user/admin order events)
 ```
 
 ## Data Storage
@@ -86,9 +94,13 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
   - Idempotent request handling via unique `RequestId` constraint.
   - Three-state reservation lifecycle (`Reserved`, `Committed`, `Released`) with historical snapshot of product name and unit price (minor units).
   - Internal service-to-service communication only; never exposed publicly or via Gateway.
-- **Not yet implemented**: SignalR realtime updates.
+- **SignalR Realtime Catalog Updates**:
+  - `CatalogHub` mapped to `/hubs/catalog`, publicly accessible (anonymous connections allowed).
+  - Client receive-only model; mutation operations forbidden on the hub.
+  - Broadcasts `ProductChanged` (on product creation, modification, and soft-deletion) and `StockChanged` (on admin stock adjustments, gRPC `ReserveStock`, `ReleaseReservation`, and `CancelCommittedReservation`).
+  - Strict transaction boundary: all SignalR notifications are best-effort and dispatched strictly after database transaction commits; SignalR failures never rollback database changes.
 
-### OrderService (partially implemented — Change-set №5C.2)
+### OrderService (partially implemented — Change-set №6)
 
 - **JWT Authentication**: Independently validates JWT tokens issued by `IdentityService` using the symmetric signing key (`Jwt:Key`), validating Issuer, Audience, Lifetime, and Signing Key (`MapInboundClaims = false`, `NameClaimType = "sub"`).
 - **Persistence Foundation**: Dedicated PostgreSQL database `shop_orders` with EF Core migrations `InitialOrders`, `AddCheckoutMetadata`, and `AddOrderCancellationState`.
@@ -141,7 +153,13 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
   - `PATCH /api/admin/orders/{id}/status`: advances lifecycle (`Confirmed → Processing`, `Processing → Shipped`, `Shipped → Completed`). Generic status PATCH cannot cancel orders. Disallowed when `CancellationState == Pending` (returns 409 `ORDER_CANCELLATION_IN_PROGRESS`).
   - `POST /api/admin/orders/{id}/cancel`: cancels order without owner check using 3-phase orchestration.
   - Zero direct access to Identity DB (`shop_identity`) or Catalog DB (`shop_catalog`).
-- **Not yet implemented**: SignalR realtime notifications, YARP API Gateway, Blazor WebAssembly frontend, Docker/Docker Compose.
+- **SignalR Realtime Order Updates**:
+  - `OrderHub` mapped to `/hubs/orders`, requiring authentication (`[Authorize]`).
+  - Supports JWT authentication over WebSocket via `access_token` query parameter, restricted strictly to `/hubs/orders`.
+  - Automatic group management on connection: partitions connections into `user:{userId}` (extracted securely from token `sub` claim) and `admins` (for users with `Admin` role claim). Client-side group manipulation is forbidden.
+  - Dispatches `OrderCreated` (after successful checkout and Catalog stock reservation confirmation), `OrderStatusChanged` (lifecycle progression, payment confirmation, cancellation), and `PaymentStatusChanged` (payment simulation, cancellation).
+  - Strict transaction boundary: all SignalR notifications are dispatched strictly after local database transaction commits; failures are logged and never rollback business data.
+- **Not yet implemented**: YARP API Gateway, Blazor WebAssembly frontend, Docker/Docker Compose.
 
 ## Technologies Intentionally Excluded in v1
 

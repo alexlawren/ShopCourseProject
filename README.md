@@ -80,12 +80,18 @@ Implemented:
 - Customer cancellation (`POST /api/orders/{id}/cancel`) and Admin cancellation (`POST /api/admin/orders/{id}/cancel`).
 - Safe committed inventory return via Catalog gRPC `CancelCommittedReservation` with 3-phase durable cancellation orchestration (`CancellationState.Pending`), preventing post-Catalog race conditions against Admin status updates (`ORDER_CANCELLATION_IN_PROGRESS`) and enabling idempotent failure recovery.
 - Admin order management API (`GET /api/admin/orders`, `GET /api/admin/orders/{id}`, `PATCH /api/admin/orders/{id}/status`, `POST /api/admin/orders/{id}/cancel`).
+- SignalR OrderHub (`/hubs/orders`).
+- Authenticated realtime user groups (`user:{userId}`).
+- Admin realtime group (`admins`).
+- Real-time order events (`OrderCreated`, `OrderStatusChanged`, `PaymentStatusChanged`).
+- SignalR CatalogHub (`/hubs/catalog`, public receive-only).
+- Real-time catalog events (`ProductChanged`, `StockChanged` on Admin adjustments, gRPC reserve, release, cancel committed).
+- WebSocket smoke verification.
 
 Planned / not implemented:
 
-- SignalR realtime notifications.
-- YARP API Gateway.
-- Blazor WebAssembly UI.
-- Docker & Docker Compose setup.
+- YARP Gateway.
+- Blazor WebAssembly.
+- Docker Compose.
 
 

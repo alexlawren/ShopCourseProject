@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Shop.OrderService.Application.Orders.Dtos;
+using Shop.OrderService.Application.Orders.Notifications;
 using Shop.OrderService.Domain.Entities;
 using Shop.OrderService.Domain.Enums;
 using Shop.OrderService.Infrastructure.Persistence;
@@ -11,15 +12,18 @@ public sealed class CheckoutService : ICheckoutService
 {
     private readonly OrderDbContext _dbContext;
     private readonly ICatalogStockClient _catalogStockClient;
+    private readonly IOrderNotificationService _notificationService;
     private readonly ILogger<CheckoutService> _logger;
 
     public CheckoutService(
         OrderDbContext dbContext,
         ICatalogStockClient catalogStockClient,
+        IOrderNotificationService notificationService,
         ILogger<CheckoutService> logger)
     {
         _dbContext = dbContext;
         _catalogStockClient = catalogStockClient;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -243,12 +247,21 @@ public sealed class CheckoutService : ICheckoutService
         var commitResult = await _catalogStockClient.CommitReservationAsync(order.ReservationId, cancellationToken);
         if (commitResult.Status == CatalogCommitStatus.Unavailable)
         {
-            // CRITICAL: Durable order exists. DO NOT RELEASE. DO NOT DELETE ORDER.
             _logger.LogWarning("Order {OrderId} was saved, but Catalog Commit timed out or was unavailable. Client can retry with RequestId {RequestId}.",
                 order.Id, request.RequestId);
 
             return CheckoutResult.CatalogUnavailable("Order was placed, but catalog confirmation timed out. Please retry with the same RequestId.");
         }
+
+        await _notificationService.NotifyOrderCreatedAsync(
+            new OrderCreatedEvent(
+                order.Id,
+                order.Status.ToString(),
+                order.PaymentStatus.ToString(),
+                order.TotalAmount,
+                order.CreatedAtUtc),
+            order.UserId,
+            cancellationToken);
 
         return CheckoutResult.Created(MapToDetailsDto(order));
     }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Shop.CatalogService.Application.Catalog.Commands;
 using Shop.CatalogService.Application.Catalog.Dtos;
+using Shop.CatalogService.Application.Catalog.Notifications;
 using Shop.CatalogService.Domain.Entities;
 using Shop.CatalogService.Infrastructure.Persistence;
 
@@ -9,10 +10,14 @@ namespace Shop.CatalogService.Application.Catalog.Services;
 public sealed class CatalogCommandService : ICatalogCommandService
 {
     private readonly CatalogDbContext _dbContext;
+    private readonly ICatalogNotificationService _notificationService;
 
-    public CatalogCommandService(CatalogDbContext dbContext)
+    public CatalogCommandService(
+        CatalogDbContext dbContext,
+        ICatalogNotificationService notificationService)
     {
         _dbContext = dbContext;
+        _notificationService = notificationService;
     }
 
     public async Task<CommandResult<CategoryDto>> CreateCategoryAsync(
@@ -150,6 +155,10 @@ public sealed class CatalogCommandService : ICatalogCommandService
         _dbContext.Products.Add(product);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        await _notificationService.NotifyProductChangedAsync(
+            new ProductChangedEvent(product.Id, product.IsActive, product.UpdatedAtUtc),
+            cancellationToken);
+
         var details = new ProductDetailsDto(
             product.Id,
             product.Name,
@@ -204,6 +213,11 @@ public sealed class CatalogCommandService : ICatalogCommandService
         product.UpdatedAtUtc = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _notificationService.NotifyProductChangedAsync(
+            new ProductChangedEvent(product.Id, product.IsActive, product.UpdatedAtUtc),
+            cancellationToken);
+
         return CommandResult.Success();
     }
 
@@ -229,6 +243,11 @@ public sealed class CatalogCommandService : ICatalogCommandService
         product.UpdatedAtUtc = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _notificationService.NotifyProductChangedAsync(
+            new ProductChangedEvent(product.Id, false, product.UpdatedAtUtc),
+            cancellationToken);
+
         return CommandResult.Success();
     }
 
@@ -254,6 +273,10 @@ public sealed class CatalogCommandService : ICatalogCommandService
         product.UpdatedAtUtc = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _notificationService.NotifyStockChangedAsync(
+            new StockChangedEvent(product.Id, product.StockQuantity, product.UpdatedAtUtc),
+            cancellationToken);
 
         return CommandResult<StockDto>.Success(new StockDto(product.Id, product.StockQuantity));
     }

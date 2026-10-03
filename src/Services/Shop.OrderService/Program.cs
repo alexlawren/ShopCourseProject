@@ -49,9 +49,25 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             NameClaimType = "sub",
             RoleClaimType = System.Security.Claims.ClaimTypes.Role
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/orders"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
+
+// --------------- SignalR ---------------
+builder.Services.AddSignalR();
 
 // --------------- gRPC Clients ---------------
 var catalogGrpcAddress = builder.Configuration["CatalogGrpc:Address"] ?? "http://localhost:5059";
@@ -66,7 +82,7 @@ builder.Services.AddScoped<ICatalogStockClient, CatalogStockGrpcClient>();
 builder.Services.AddScoped<ICheckoutService, CheckoutService>();
 builder.Services.AddScoped<IOrderQueryService, OrderQueryService>();
 builder.Services.AddScoped<IOrderManagementService, OrderManagementService>();
-
+builder.Services.AddScoped<Shop.OrderService.Application.Orders.Notifications.IOrderNotificationService, Shop.OrderService.Infrastructure.Notifications.SignalROrderNotificationService>();
 
 // --------------- Controllers & Error Handling ---------------
 builder.Services.AddControllers();
@@ -81,6 +97,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<Shop.OrderService.Hubs.OrderHub>("/hubs/orders");
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "OrderService" }));
 

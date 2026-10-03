@@ -58,6 +58,10 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<ICatalogQueryService, CatalogQueryService>();
 builder.Services.AddScoped<ICatalogCommandService, CatalogCommandService>();
 builder.Services.AddScoped<IStockReservationService, StockReservationService>();
+builder.Services.AddScoped<Shop.CatalogService.Application.Catalog.Notifications.ICatalogNotificationService, Shop.CatalogService.Infrastructure.Notifications.SignalRCatalogNotificationService>();
+
+// --------------- SignalR ---------------
+builder.Services.AddSignalR();
 
 // --------------- gRPC Services ---------------
 builder.Services.AddGrpc();
@@ -101,6 +105,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<Shop.CatalogService.Hubs.CatalogHub>("/hubs/catalog");
 app.MapGrpcService<StockReservationGrpcService>();
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "CatalogService" }));

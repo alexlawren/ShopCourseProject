@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Shop.OrderService.Application.Orders.Common;
 using Shop.OrderService.Application.Orders.Dtos;
+using Shop.OrderService.Application.Orders.Notifications;
 using Shop.OrderService.Domain.Entities;
 using Shop.OrderService.Domain.Enums;
 using Shop.OrderService.Infrastructure.Persistence;
@@ -13,15 +14,18 @@ public sealed class OrderManagementService : IOrderManagementService
 {
     private readonly OrderDbContext _dbContext;
     private readonly ICatalogStockClient _catalogStockClient;
+    private readonly IOrderNotificationService _notificationService;
     private readonly ILogger<OrderManagementService> _logger;
 
     public OrderManagementService(
         OrderDbContext dbContext,
         ICatalogStockClient catalogStockClient,
+        IOrderNotificationService notificationService,
         ILogger<OrderManagementService> logger)
     {
         _dbContext = dbContext;
         _catalogStockClient = catalogStockClient;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -70,8 +74,10 @@ public sealed class OrderManagementService : IOrderManagementService
         order.PaymentStatus = PaymentStatus.Paid;
         order.UpdatedAtUtc = now;
 
+        bool statusChangedToConfirmed = false;
         if (order.Status == OrderStatus.Created)
         {
+            statusChangedToConfirmed = true;
             order.Status = OrderStatus.Confirmed;
             _dbContext.OrderStatusHistory.Add(new OrderStatusHistory
             {
@@ -84,6 +90,19 @@ public sealed class OrderManagementService : IOrderManagementService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
+
+        await _notificationService.NotifyPaymentStatusChangedAsync(
+            new PaymentStatusChangedEvent(order.Id, PaymentStatus.Paid.ToString(), now),
+            order.UserId,
+            cancellationToken);
+
+        if (statusChangedToConfirmed)
+        {
+            await _notificationService.NotifyOrderStatusChangedAsync(
+                new OrderStatusChangedEvent(order.Id, OrderStatus.Confirmed.ToString(), now),
+                order.UserId,
+                cancellationToken);
+        }
 
         return OrderOperationResult.Success(CheckoutService.MapToDetailsDto(order));
     }
@@ -190,6 +209,8 @@ public sealed class OrderManagementService : IOrderManagementService
         }
 
         var now = DateTime.UtcNow;
+        bool paymentStatusChanged = orderC.PaymentStatus != PaymentStatus.Cancelled;
+
         orderC.Status = OrderStatus.Cancelled;
         orderC.PaymentStatus = PaymentStatus.Cancelled;
         orderC.CancellationState = CancellationState.None;
@@ -205,6 +226,19 @@ public sealed class OrderManagementService : IOrderManagementService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         await txC.CommitAsync(cancellationToken);
+
+        await _notificationService.NotifyOrderStatusChangedAsync(
+            new OrderStatusChangedEvent(orderC.Id, OrderStatus.Cancelled.ToString(), now),
+            orderC.UserId,
+            cancellationToken);
+
+        if (paymentStatusChanged)
+        {
+            await _notificationService.NotifyPaymentStatusChangedAsync(
+                new PaymentStatusChangedEvent(orderC.Id, PaymentStatus.Cancelled.ToString(), now),
+                orderC.UserId,
+                cancellationToken);
+        }
 
         return OrderOperationResult.Success(
             CheckoutService.MapToDetailsDto(orderC),
@@ -279,6 +313,11 @@ public sealed class OrderManagementService : IOrderManagementService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
+
+        await _notificationService.NotifyOrderStatusChangedAsync(
+            new OrderStatusChangedEvent(order.Id, nextStatus.ToString(), now),
+            order.UserId,
+            cancellationToken);
 
         return OrderOperationResult.AdminSuccess(CheckoutService.MapToAdminDetailsDto(order));
     }
