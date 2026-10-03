@@ -102,4 +102,55 @@ public static class JwtClaimsParser
         }
         return Convert.FromBase64String(base64);
     }
+
+    public static long? GetExpirationUnixTime(string? jwt)
+    {
+        if (string.IsNullOrWhiteSpace(jwt))
+            return null;
+
+        var parts = jwt.Split('.');
+        if (parts.Length < 2)
+            return null;
+
+        try
+        {
+            var jsonBytes = ParseBase64WithoutPadding(parts[1]);
+            using var doc = JsonDocument.Parse(jsonBytes);
+            if (doc.RootElement.TryGetProperty("exp", out var expElement))
+            {
+                if (expElement.ValueKind == JsonValueKind.Number && expElement.TryGetInt64(out var exp))
+                {
+                    return exp;
+                }
+
+                if (expElement.ValueKind == JsonValueKind.String && long.TryParse(expElement.GetString(), out var expParsed))
+                {
+                    return expParsed;
+                }
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    public static DateTimeOffset? GetExpiration(string? jwt)
+    {
+        var exp = GetExpirationUnixTime(jwt);
+        return exp.HasValue ? DateTimeOffset.FromUnixTimeSeconds(exp.Value) : null;
+    }
+
+    public static bool IsExpiredOrExpiringSoon(string? jwt, TimeSpan? skew = null)
+    {
+        var expiration = GetExpiration(jwt);
+        if (!expiration.HasValue)
+            return true;
+
+        var effectiveSkew = skew ?? TimeSpan.FromSeconds(30);
+        return DateTimeOffset.UtcNow + effectiveSkew >= expiration.Value;
+    }
 }
+

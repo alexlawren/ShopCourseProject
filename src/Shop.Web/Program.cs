@@ -34,6 +34,10 @@ builder.Services.AddScoped(sp =>
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICatalogApiClient, CatalogApiClient>();
 builder.Services.AddScoped<ICatalogRealtimeService, CatalogRealtimeService>();
+builder.Services.AddScoped<ICartApiClient, CartApiClient>();
+builder.Services.AddScoped<IOrderApiClient, OrderApiClient>();
+builder.Services.AddScoped<IOrderRealtimeService, OrderRealtimeService>();
+builder.Services.AddScoped<ICheckoutRequestIdStorage, SessionStorageCheckoutRequestIdStorage>();
 
 var host = builder.Build();
 

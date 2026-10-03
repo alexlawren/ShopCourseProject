@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Extensions.DependencyInjection;
 using Shop.Web.Auth;
 using Shop.Web.Models.Auth;
 
@@ -24,16 +25,19 @@ public class AuthService : IAuthService
     private readonly HttpClient _httpClient;
     private readonly ITokenStorage _tokenStorage;
     private readonly CustomAuthenticationStateProvider _authStateProvider;
+    private readonly IServiceProvider _serviceProvider;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
 
     public AuthService(
         HttpClient httpClient,
         ITokenStorage tokenStorage,
-        AuthenticationStateProvider authStateProvider)
+        AuthenticationStateProvider authStateProvider,
+        IServiceProvider serviceProvider)
     {
         _httpClient = httpClient;
         _tokenStorage = tokenStorage;
         _authStateProvider = (CustomAuthenticationStateProvider)authStateProvider;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task<AuthResult> RegisterAsync(RegisterModel model)
@@ -116,6 +120,19 @@ public class AuthService : IAuthService
 
         await _tokenStorage.ClearTokensAsync();
         _authStateProvider.NotifyUserLogout();
+
+        try
+        {
+            var realtimeService = _serviceProvider.GetService<IOrderRealtimeService>();
+            if (realtimeService != null)
+            {
+                await realtimeService.StopAsync();
+            }
+        }
+        catch
+        {
+            // Ignore realtime disconnect errors on logout
+        }
     }
 
     public async Task<bool> RefreshAsync()
@@ -123,6 +140,14 @@ public class AuthService : IAuthService
         await _refreshLock.WaitAsync();
         try
         {
+            // Double-check: if another concurrent request already refreshed the token while we were waiting,
+            // and it is valid for at least 15 more seconds, reuse it.
+            var currentToken = await _tokenStorage.GetAccessTokenAsync();
+            if (!string.IsNullOrWhiteSpace(currentToken) && !JwtClaimsParser.IsExpiredOrExpiringSoon(currentToken, TimeSpan.FromSeconds(15)))
+            {
+                return true;
+            }
+
             var refreshToken = await _tokenStorage.GetRefreshTokenAsync();
             if (string.IsNullOrWhiteSpace(refreshToken))
             {

@@ -179,7 +179,7 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
 - **Gateway Health**: Dedicated `/health` probe endpoint returning `200 OK`.
 - **CORS Configuration**: Restricts access to specific `Shop.Web` development origins (`http://localhost:5287`, `https://localhost:7177`) with explicit methods and headers, without wildcard credentials.
 
-### Shop.Web (Foundation Implemented — Change-set №8A)
+### Shop.Web (Customer Commerce UI Implemented — Change-set №8B.1)
 
 - **Technology**: Blazor WebAssembly (.NET 9.0) client-side Single Page Application.
 - **Gateway-Only Networking**: Browser connects strictly and exclusively to `Shop.Gateway` (`http://localhost:5210` in Development) configured via `Gateway:BaseUrl`. Direct browser calls to downstream microservices (5078, 5058, 5059, 5141) are strictly prohibited.
@@ -187,30 +187,37 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
   - `ITokenStorage` backed by browser `sessionStorage` via minimal JS interop. Tokens persist across page reloads (F5) within a tab and are cleared on tab close.
   - `CustomAuthenticationStateProvider` decodes Base64Url JWT claims (`sub`, `email`, `role`) for UI rendering only. Backend microservices remain the sole authoritative security validators.
   - No JWT signing keys or database credentials exist on the frontend.
-- **Refresh Token Flow**:
-  - `AuthHeaderHandler` intercepts 401 responses on protected endpoints.
-  - Concurrency protected via `SemaphoreSlim(1, 1)` in `AuthService`.
-  - On refresh success: tokens updated, UI notified, and failed GET request retried once.
-  - On failure: tokens purged, UI transitions to anonymous.
+- **Safe Mutation Refresh Token Flow**:
+  - Proactive JWT expiration check (`JwtClaimsParser.IsExpiredOrExpiringSoon`, 30s skew) triggers `RefreshAsync()` before sending mutations (POST/PUT/DELETE) to prevent replaying unsafe calls on 401.
+  - Concurrency protected via `SemaphoreSlim(1, 1)` with double-checked locking in `AuthService`.
+  - Fallback 401 interceptor retry preserved strictly for safe GET requests.
+  - On failure: tokens purged, active OrderHub connection terminated, UI transitions to anonymous.
 - **Public Product Catalog**:
   - Paginated browsing with search, category filtering, price bounds, in-stock filter, and sorting.
   - Product details view (`/products/{id}`) with robust 404 Not Found handling.
   - Product images served exclusively through Gateway URL builder (`http://localhost:5210/product-images/...`).
+  - Add to Cart directly from catalog card and details page with quantity stepper.
 - **Catalog Realtime Integration**:
   - SignalR client connects to Gateway `/hubs/catalog` with automatic reconnection.
   - `StockChanged` events update visible product stock in-place.
   - `ProductChanged` events trigger catalog refetch, immediately removing soft-deleted items.
-  - Subscriptions disposed cleanly on component navigation.
+- **Customer Commerce Flow (Catalog → Cart → Checkout → Orders)**:
+  - **Cart UI (`/cart`)**: Enriches OrderService `(ProductId, Quantity)` entries with CatalogService metadata (`Task.WhenAll`). Displays unavailable item alerts. Absolute quantity PUT (1..1000), item removal DELETE, clear cart with confirmation. Decimal preview total calculation.
+  - **Checkout UI**: Generates client `Guid RequestId` saved in `sessionStorage` (`pending_checkout_request_id`). Preserved for retry upon uncertain failures (502, 503, network drop). Cleared upon definitive order creation (201/200) or deterministic business rejection (`OUT_OF_STOCK`, `CART_CHANGED`, `EMPTY_CART`).
+  - **Orders UI (`/orders`)**: Paginated list of customer orders with status/payment badges and "Подробнее" link.
+  - **Order Details (`/orders/{id}`)**: Historical snapshot line items (`ProductName`, `UnitPrice`, `Quantity`, `LineTotal`), chronological `OrderStatusHistory` timeline, strict user ownership isolation.
+  - **Simulated Payment UI**: Triggers `POST /api/orders/{id}/pay` for pending orders with educational disclaimer.
+  - **Order Cancellation UI**: Permitted only for cancellable statuses (`Created`, `Confirmed`, `Processing`). Native confirmation dialog. Handles `ORDER_CANCELLATION_IN_PROGRESS` gracefully.
+- **OrderHub SignalR Realtime Integration**:
+  - Connects to Gateway `/hubs/orders` via WebSocket.
+  - Dynamic `AccessTokenProvider` providing up-to-date JWT from `ITokenStorage` on connect/reconnect.
+  - Scoped lifecycle tied to SPA session; disconnected on logout.
+  - Subscribes to `OrderCreated`, `OrderStatusChanged`, `PaymentStatusChanged`, updating list and details views idempotently.
 - **Role-Aware Navigation**:
-  - `NavMenu.razor` dynamically renders login/register vs authenticated user email, role badge (Customer/Admin), and logout.
-- **Deferred to Change-set №8B**:
-  - Shopping Cart UI.
-  - Checkout UI.
-  - Customer Orders UI.
-  - Simulated Payment / Cancellation UI.
-  - Admin Catalog Management UI.
-  - Admin Orders UI.
-  - SignalR OrderHub Realtime Integration.
+  - `NavMenu.razor` dynamically renders login/register vs authenticated user email, role badge (Customer/Admin), Cart, Orders, and logout.
+- **Deferred to Change-set №8B.2**:
+  - Admin Catalog Management UI (categories, product CRUD, soft-delete, stock adjustment, image upload/delete).
+  - Admin Orders UI (lifecycle controls, status progression, admin cancellation).
 - **Deferred to Future Stages**:
   - Docker Compose.
   - Final E2E testing suite.

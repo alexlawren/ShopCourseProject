@@ -1,5 +1,6 @@
 @page "/products/{Id:guid}"
 @inject ICatalogApiClient CatalogClient
+@inject ICartApiClient CartClient
 @inject ICatalogRealtimeService RealtimeService
 @inject NavigationManager Navigation
 @implements IDisposable
@@ -86,6 +87,52 @@
                     }
                 </div>
 
+                <div class="card p-3 border-0 bg-white shadow-sm mb-4">
+                    <AuthorizeView>
+                        <Authorized>
+                            @if (_product.StockQuantity > 0)
+                            {
+                                <div class="row g-2 align-items-center">
+                                    <div class="col-auto">
+                                        <label for="productQty" class="form-label small fw-semibold mb-0">Количество:</label>
+                                    </div>
+                                    <div class="col-auto">
+                                        <div class="input-group input-group-sm" style="width: 130px;">
+                                            <button class="btn btn-outline-secondary" type="button" @onclick="DecrementQuantity" disabled="@(_quantity <= 1 || _isAddingToCart)">-</button>
+                                            <input id="productQty" type="number" min="1" max="@Math.Min(1000, _product.StockQuantity)" class="form-control text-center" @bind="_quantity" disabled="@_isAddingToCart" />
+                                            <button class="btn btn-outline-secondary" type="button" @onclick="IncrementQuantity" disabled="@(_quantity >= Math.Min(1000, _product.StockQuantity) || _isAddingToCart)">+</button>
+                                        </div>
+                                    </div>
+                                    <div class="col">
+                                        <button class="btn btn-primary btn-sm px-4 w-100" @onclick="HandleAddToCart" disabled="@_isAddingToCart">
+                                            @(_isAdded ? "✓ В корзине" : "В корзину")
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-warning py-2 mb-0 small">
+                                    Товар временно отсутствует на складе.
+                                </div>
+                            }
+                        </Authorized>
+                        <NotAuthorized>
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="small text-muted">Хотите заказать этот товар?</span>
+                                <a href="/login" class="btn btn-outline-primary btn-sm">Войдите, чтобы добавить в корзину</a>
+                            </div>
+                        </NotAuthorized>
+                    </AuthorizeView>
+
+                    @if (!string.IsNullOrWhiteSpace(_cartFeedbackMessage))
+                    {
+                        <div class="alert @(_cartFeedbackIsError ? "alert-danger" : "alert-success") py-2 mt-2 mb-0 small" role="alert">
+                            @_cartFeedbackMessage
+                        </div>
+                    }
+                </div>
+
                 <div class="mb-4 flex-grow-1">
                     <h6 class="fw-semibold text-muted text-uppercase small">Описание</h6>
                     <p class="text-secondary lh-base">
@@ -107,6 +154,11 @@
 
     private ProductDetailDto? _product;
     private bool _isLoading = true;
+    private int _quantity = 1;
+    private bool _isAddingToCart = false;
+    private bool _isAdded = false;
+    private string? _cartFeedbackMessage;
+    private bool _cartFeedbackIsError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -153,6 +205,56 @@
                 await LoadProductAsync();
             });
         }
+    }
+
+    private void IncrementQuantity()
+    {
+        if (_product != null && _quantity < Math.Min(1000, _product.StockQuantity))
+        {
+            _quantity++;
+        }
+    }
+
+    private void DecrementQuantity()
+    {
+        if (_quantity > 1)
+        {
+            _quantity--;
+        }
+    }
+
+    private async Task HandleAddToCart()
+    {
+        if (_product == null)
+            return;
+
+        if (_quantity < 1 || _quantity > 1000)
+        {
+            _cartFeedbackMessage = "Количество должно быть от 1 до 1000.";
+            _cartFeedbackIsError = true;
+            return;
+        }
+
+        _isAddingToCart = true;
+        _cartFeedbackMessage = null;
+        StateHasChanged();
+
+        var result = await CartClient.AddItemAsync(_product.Id, _quantity);
+        _isAddingToCart = false;
+
+        if (result.Succeeded)
+        {
+            _isAdded = true;
+            _cartFeedbackMessage = $"Товар успешно добавлен в корзину (количество: {_quantity}).";
+            _cartFeedbackIsError = false;
+        }
+        else
+        {
+            _cartFeedbackMessage = result.ErrorMessage ?? "Не удалось добавить товар в корзину.";
+            _cartFeedbackIsError = true;
+        }
+
+        StateHasChanged();
     }
 
     public void Dispose()

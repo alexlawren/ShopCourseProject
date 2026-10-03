@@ -1,5 +1,6 @@
 @page "/catalog"
 @inject ICatalogApiClient CatalogClient
+@inject ICartApiClient CartClient
 @inject ICatalogRealtimeService RealtimeService
 @inject NavigationManager Navigation
 @implements IDisposable
@@ -21,6 +22,14 @@
             }
         </span>
     </div>
+
+    @if (!string.IsNullOrWhiteSpace(_cartFeedbackMessage))
+    {
+        <div class="alert @(_cartFeedbackIsError ? "alert-danger" : "alert-success") alert-dismissible fade show py-2 mb-3" role="alert">
+            @_cartFeedbackMessage
+            <button type="button" class="btn-close" @onclick="() => _cartFeedbackMessage = null"></button>
+        </div>
+    }
 
     <!-- Фильтры -->
     <div class="card border-0 shadow-sm p-3 mb-4 bg-light">
@@ -125,7 +134,7 @@
                                 @(string.IsNullOrWhiteSpace(prod.CategoryName) ? "Без категории" : prod.CategoryName)
                             </span>
                             <h6 class="card-title fw-bold text-dark mb-2 text-truncate" title="@prod.Name">
-                                <a href="/products/@prod.Id" class="text-decoration-none text-dark stretched-link">
+                                <a href="/products/@prod.Id" class="text-decoration-none text-dark">
                                     @prod.Name
                                 </a>
                             </h6>
@@ -148,6 +157,30 @@
                                         </span>
                                     }
                                 </div>
+                            </div>
+
+                            <div class="mt-2">
+                                <AuthorizeView>
+                                    <Authorized>
+                                        @if (prod.StockQuantity > 0)
+                                        {
+                                            <button class="btn btn-primary btn-sm w-100" @onclick="() => HandleAddToCart(prod.Id)" disabled="@_isAddingToCart">
+                                                @(_justAddedProductId == prod.Id ? "✓ Добавлено" : "В корзину")
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-outline-secondary btn-sm w-100" disabled>
+                                                Нет в наличии
+                                            </button>
+                                        }
+                                    </Authorized>
+                                    <NotAuthorized>
+                                        <a href="/login" class="btn btn-outline-secondary btn-sm w-100">
+                                            Войдите, чтобы купить
+                                        </a>
+                                    </NotAuthorized>
+                                </AuthorizeView>
                             </div>
                         </div>
                     </div>
@@ -179,6 +212,10 @@
     private IReadOnlyList<CategoryDto> _categories = [];
     private string _selectedCategoryIdString = "";
     private bool _isLoading = true;
+    private bool _isAddingToCart = false;
+    private Guid? _justAddedProductId;
+    private string? _cartFeedbackMessage;
+    private bool _cartFeedbackIsError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -259,6 +296,30 @@
             // When product changes or soft-deleted, reload catalog page
             await LoadProductsAsync();
         });
+    }
+
+    private async Task HandleAddToCart(Guid productId)
+    {
+        _isAddingToCart = true;
+        _cartFeedbackMessage = null;
+        StateHasChanged();
+
+        var result = await CartClient.AddItemAsync(productId, 1);
+        _isAddingToCart = false;
+
+        if (result.Succeeded)
+        {
+            _justAddedProductId = productId;
+            _cartFeedbackMessage = "Товар успешно добавлен в корзину.";
+            _cartFeedbackIsError = false;
+        }
+        else
+        {
+            _cartFeedbackMessage = result.ErrorMessage ?? "Не удалось добавить товар в корзину.";
+            _cartFeedbackIsError = true;
+        }
+
+        StateHasChanged();
     }
 
     public void Dispose()

@@ -105,17 +105,23 @@ Implemented:
 - Product details page with image display through Gateway and 404 handling.
 - Catalog SignalR realtime updates (`StockChanged` in-place update, `ProductChanged` auto-refetch).
 - Role-aware navigation bar (Customer/Admin role indicators).
+- Customer Cart UI (`/cart`) with Catalog product enrichment (`Task.WhenAll`), quantity controls (1..1000), removal, clear cart confirmation, and decimal preview total calculation.
+- Add to Cart directly from catalog listing and product details pages.
+- Checkout UI (`POST /api/orders`) with client-generated idempotent `RequestId`.
+- Checkout idempotency recovery (`sessionStorage` persistence; preserve on uncertain 502/503/timeout, clear on definitive 201/200 and deterministic business rejections).
+- Customer Orders UI (`/orders`) with server-side pagination, status/payment badges, and details navigation.
+- Order details UI (`/orders/{id}`) with immutable historical `OrderItem` snapshots (name, unit price, quantity, line total) and chronological `OrderStatusHistory` timeline.
+- Payment simulation UI (`POST /api/orders/{id}/pay`) with educational disclaimer and double-submit protection.
+- Order cancellation UI (`POST /api/orders/{id}/cancel`) with native confirmation dialog and `ORDER_CANCELLATION_IN_PROGRESS` retry handling.
+- OrderHub SignalR realtime customer updates (`/hubs/orders` via Gateway, dynamic JWT `AccessTokenProvider`, automatic reconnect, customer group isolation).
+- Safe mutation token refresh (proactive expiration check with 30s skew before sending mutations; retry strictly limited to GET).
 
 Planned / not implemented:
 
-- Cart UI.
-- Checkout UI.
-- Customer Orders UI.
-- Payment simulation & order cancellation UI.
-- Admin Catalog management UI.
-- Admin Orders management UI.
-- OrderHub SignalR realtime integration.
+- Admin Catalog UI (category management, product CRUD, soft-delete, stock management, image upload/delete).
+- Admin Orders UI (order lifecycle progression, admin cancellation).
 - Docker Compose.
 - Final end-to-end validation.
+
 
 
