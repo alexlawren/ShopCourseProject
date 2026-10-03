@@ -293,4 +293,69 @@ public sealed class StockReservationService : IStockReservationService
 
         return new CommitReservationResult(CommitResultStatus.AlreadyReleased, "Reservation state conflict.");
     }
+
+    public async Task<CancelCommittedReservationResult> CancelCommittedReservationAsync(
+        Guid reservationId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var now = DateTime.UtcNow;
+
+        // Atomically transition status from Committed to Cancelled
+        int affected = await _dbContext.StockReservations
+            .Where(r => r.Id == reservationId && r.Status == StockReservationStatus.Committed)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.Status, StockReservationStatus.Cancelled)
+                .SetProperty(r => r.UpdatedAtUtc, now), cancellationToken);
+
+        if (affected == 1)
+        {
+            // Exactly one caller wins the transition. Restore stock.
+            var items = await _dbContext.StockReservationItems
+                .AsNoTracking()
+                .Where(i => i.ReservationId == reservationId)
+                .ToListAsync(cancellationToken);
+
+            foreach (var item in items)
+            {
+                await _dbContext.Products
+                    .Where(p => p.Id == item.ProductId)
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(p => p.StockQuantity, p => p.StockQuantity + item.Quantity)
+                        .SetProperty(p => p.UpdatedAtUtc, now), cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            return new CancelCommittedReservationResult(CancelCommittedResultStatus.Success, "Committed reservation cancelled and stock restored successfully.");
+        }
+
+        // Did not transition (either not found, or not in Committed status)
+        await transaction.RollbackAsync(cancellationToken);
+
+        var currentReservation = await _dbContext.StockReservations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == reservationId, cancellationToken);
+
+        if (currentReservation == null)
+        {
+            return new CancelCommittedReservationResult(CancelCommittedResultStatus.NotFound, "Reservation not found.");
+        }
+
+        if (currentReservation.Status == StockReservationStatus.Cancelled)
+        {
+            return new CancelCommittedReservationResult(CancelCommittedResultStatus.Success, "Reservation is already cancelled.");
+        }
+
+        if (currentReservation.Status == StockReservationStatus.Reserved)
+        {
+            return new CancelCommittedReservationResult(CancelCommittedResultStatus.InvalidState, "Cannot cancel a reservation that is still in Reserved status. Use ReleaseReservation instead.");
+        }
+
+        if (currentReservation.Status == StockReservationStatus.Released)
+        {
+            return new CancelCommittedReservationResult(CancelCommittedResultStatus.InvalidState, "Cannot cancel a released reservation.");
+        }
+
+        return new CancelCommittedReservationResult(CancelCommittedResultStatus.InvalidState, "Reservation state conflict.");
+    }
 }

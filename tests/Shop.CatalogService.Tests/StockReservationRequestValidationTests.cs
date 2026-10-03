@@ -178,4 +178,33 @@ public class StockReservationRequestValidationTests
 
         Assert.False(result.IsValid);
     }
+
+    [Fact]
+    public void Validate_CancelCommitted_ValidReservationId_ReturnsValid()
+    {
+        var request = new CancelCommittedReservationRequest
+        {
+            ReservationId = Guid.NewGuid().ToString()
+        };
+
+        var result = StockReservationRequestValidator.Validate(request);
+
+        Assert.True(result.IsValid);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not-a-guid")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    public void Validate_CancelCommitted_InvalidReservationId_ReturnsInvalid(string reservationId)
+    {
+        var request = new CancelCommittedReservationRequest
+        {
+            ReservationId = reservationId
+        };
+
+        var result = StockReservationRequestValidator.Validate(request);
+
+        Assert.False(result.IsValid);
+    }
 }

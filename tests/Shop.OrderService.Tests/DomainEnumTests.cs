@@ -36,4 +36,18 @@ public class DomainEnumTests
 
         Assert.Equal(expectedNames.OrderBy(n => n), actualNames.OrderBy(n => n));
     }
+
+    [Fact]
+    public void CancellationState_ContainsAllExpectedStates()
+    {
+        var expectedNames = new[]
+        {
+            "None",
+            "Pending"
+        };
+
+        var actualNames = Enum.GetNames<CancellationState>();
+
+        Assert.Equal(expectedNames.OrderBy(n => n), actualNames.OrderBy(n => n));
+    }
 }

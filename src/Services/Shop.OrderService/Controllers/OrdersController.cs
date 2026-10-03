@@ -13,13 +13,16 @@ public sealed class OrdersController : ControllerBase
 {
     private readonly ICheckoutService _checkoutService;
     private readonly IOrderQueryService _orderQueryService;
+    private readonly IOrderManagementService _orderManagementService;
 
     public OrdersController(
         ICheckoutService checkoutService,
-        IOrderQueryService orderQueryService)
+        IOrderQueryService orderQueryService,
+        IOrderManagementService orderManagementService)
     {
         _checkoutService = checkoutService;
         _orderQueryService = orderQueryService;
+        _orderManagementService = orderManagementService;
     }
 
     [HttpPost]
@@ -152,5 +155,101 @@ public sealed class OrdersController : ControllerBase
         }
 
         return Ok(order);
+    }
+
+    [HttpPost("{id:guid}/pay")]
+    [ProducesResponseType(typeof(OrderDetailsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> PayOrder(
+        [FromRoute] Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!User.TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await _orderManagementService.PayOrderAsync(userId, id, cancellationToken);
+
+        return result.Status switch
+        {
+            OrderOperationStatus.Success => Ok(result.Order),
+
+            OrderOperationStatus.NotFound => NotFound(),
+
+            OrderOperationStatus.PaymentCancelled => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Conflict",
+                detail: result.ErrorMessage,
+                extensions: new Dictionary<string, object?> { ["code"] = "PAYMENT_CANCELLED" }),
+
+            OrderOperationStatus.CancellationInProgress => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Conflict",
+                detail: result.ErrorMessage,
+                extensions: new Dictionary<string, object?> { ["code"] = "ORDER_CANCELLATION_IN_PROGRESS" }),
+
+            OrderOperationStatus.InvalidTransition => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Conflict",
+                detail: result.ErrorMessage,
+                extensions: new Dictionary<string, object?> { ["code"] = "INVALID_ORDER_TRANSITION" }),
+
+            _ => Problem(
+                statusCode: StatusCodes.Status500InternalServerError,
+                title: "Internal Server Error",
+                detail: result.ErrorMessage ?? "An unexpected error occurred during payment.")
+        };
+    }
+
+    [HttpPost("{id:guid}/cancel")]
+    [ProducesResponseType(typeof(OrderDetailsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> CancelOrder(
+        [FromRoute] Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!User.TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await _orderManagementService.CancelOrderAsync(userId, id, cancellationToken);
+
+        return result.Status switch
+        {
+            OrderOperationStatus.Success => Ok(result.Order),
+
+            OrderOperationStatus.NotFound => NotFound(),
+
+            OrderOperationStatus.CannotCancel or OrderOperationStatus.InvalidTransition => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Conflict",
+                detail: result.ErrorMessage,
+                extensions: new Dictionary<string, object?> { ["code"] = "ORDER_CANNOT_BE_CANCELLED" }),
+
+            OrderOperationStatus.CatalogUnavailable => Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "Service Unavailable",
+                detail: result.ErrorMessage,
+                extensions: new Dictionary<string, object?> { ["code"] = "CATALOG_UNAVAILABLE" }),
+
+            OrderOperationStatus.DownstreamError => Problem(
+                statusCode: StatusCodes.Status502BadGateway,
+                title: "Bad Gateway",
+                detail: result.ErrorMessage,
+                extensions: new Dictionary<string, object?> { ["code"] = "DOWNSTREAM_ERROR" }),
+
+            _ => Problem(
+                statusCode: StatusCodes.Status500InternalServerError,
+                title: "Internal Server Error",
+                detail: result.ErrorMessage ?? "An unexpected error occurred during cancellation.")
+        };
     }
 }

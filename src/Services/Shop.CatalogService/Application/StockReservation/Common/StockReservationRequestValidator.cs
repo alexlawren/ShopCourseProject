@@ -88,4 +88,19 @@ public static class StockReservationRequestValidator
 
         return ValidationResult.Success();
     }
+
+    public static ValidationResult Validate(CancelCommittedReservationRequest request)
+    {
+        if (request == null)
+        {
+            return ValidationResult.Fail("Request cannot be null.");
+        }
+
+        if (!Guid.TryParse(request.ReservationId, out var reservationId) || reservationId == Guid.Empty)
+        {
+            return ValidationResult.Fail("Invalid or missing reservation_id GUID.");
+        }
+
+        return ValidationResult.Success();
+    }
 }

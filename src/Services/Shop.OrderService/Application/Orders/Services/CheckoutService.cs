@@ -275,4 +275,28 @@ public sealed class CheckoutService : ICheckoutService
                 .ToList()
         };
     }
+
+    public static AdminOrderDetailsDto MapToAdminDetailsDto(Order order)
+    {
+        return new AdminOrderDetailsDto
+        {
+            Id = order.Id,
+            UserId = order.UserId,
+            Status = order.Status.ToString(),
+            PaymentStatus = order.PaymentStatus.ToString(),
+            TotalAmount = order.TotalAmount,
+            CreatedAtUtc = order.CreatedAtUtc,
+            UpdatedAtUtc = order.UpdatedAtUtc,
+            Items = order.Items.Select(i => new OrderItemDto(
+                i.ProductId,
+                i.ProductName,
+                i.UnitPrice,
+                i.Quantity,
+                i.LineTotal)).ToList(),
+            StatusHistory = order.StatusHistory
+                .OrderBy(sh => sh.ChangedAtUtc)
+                .Select(sh => new OrderStatusHistoryDto(sh.Status.ToString(), sh.ChangedAtUtc))
+                .ToList()
+        };
+    }
 }

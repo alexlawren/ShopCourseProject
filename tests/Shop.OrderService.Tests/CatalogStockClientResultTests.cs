@@ -94,4 +94,28 @@ public class CatalogStockClientResultTests
         Assert.False(unavailable.IsSuccess);
         Assert.Equal(CatalogCommitStatus.Unavailable, unavailable.Status);
     }
+
+    [Fact]
+    public void CatalogCancelCommittedResult_States()
+    {
+        var success = CatalogCancelCommittedResult.Success("Cancelled.");
+        Assert.True(success.IsSuccess);
+        Assert.Equal(CatalogCancelCommittedStatus.Success, success.Status);
+
+        var notFound = CatalogCancelCommittedResult.NotFound("Not found.");
+        Assert.False(notFound.IsSuccess);
+        Assert.Equal(CatalogCancelCommittedStatus.NotFound, notFound.Status);
+
+        var invalidState = CatalogCancelCommittedResult.InvalidState("Invalid state.");
+        Assert.False(invalidState.IsSuccess);
+        Assert.Equal(CatalogCancelCommittedStatus.InvalidState, invalidState.Status);
+
+        var unavailable = CatalogCancelCommittedResult.Unavailable("Unavailable.");
+        Assert.False(unavailable.IsSuccess);
+        Assert.Equal(CatalogCancelCommittedStatus.Unavailable, unavailable.Status);
+
+        var downstream = CatalogCancelCommittedResult.DownstreamError("Downstream error.");
+        Assert.False(downstream.IsSuccess);
+        Assert.Equal(CatalogCancelCommittedStatus.DownstreamError, downstream.Status);
+    }
 }

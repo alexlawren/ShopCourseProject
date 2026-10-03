@@ -40,4 +40,40 @@ public class StockReservationStateMachineTests
     {
         Assert.False(StockReservationStateMachine.CanRelease(StockReservationStatus.Committed));
     }
+
+    [Fact]
+    public void CanCancelCommitted_WhenCommitted_ReturnsTrue()
+    {
+        Assert.True(StockReservationStateMachine.CanCancelCommitted(StockReservationStatus.Committed));
+    }
+
+    [Fact]
+    public void CanCancelCommitted_WhenCancelled_ReturnsTrue_ForIdempotency()
+    {
+        Assert.True(StockReservationStateMachine.CanCancelCommitted(StockReservationStatus.Cancelled));
+    }
+
+    [Fact]
+    public void CanCancelCommitted_WhenReserved_ReturnsFalse()
+    {
+        Assert.False(StockReservationStateMachine.CanCancelCommitted(StockReservationStatus.Reserved));
+    }
+
+    [Fact]
+    public void CanCancelCommitted_WhenReleased_ReturnsFalse()
+    {
+        Assert.False(StockReservationStateMachine.CanCancelCommitted(StockReservationStatus.Released));
+    }
+
+    [Fact]
+    public void CanCommit_WhenCancelled_ReturnsFalse()
+    {
+        Assert.False(StockReservationStateMachine.CanCommit(StockReservationStatus.Cancelled));
+    }
+
+    [Fact]
+    public void CanRelease_WhenCancelled_ReturnsFalse()
+    {
+        Assert.False(StockReservationStateMachine.CanRelease(StockReservationStatus.Cancelled));
+    }
 }

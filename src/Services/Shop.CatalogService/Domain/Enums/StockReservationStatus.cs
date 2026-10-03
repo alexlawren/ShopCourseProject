@@ -4,5 +4,6 @@ public enum StockReservationStatus
 {
     Reserved,
     Committed,
-    Released
+    Released,
+    Cancelled
 }

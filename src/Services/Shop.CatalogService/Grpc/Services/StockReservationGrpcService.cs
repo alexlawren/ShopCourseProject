@@ -105,4 +105,29 @@ public sealed class StockReservationGrpcService : StockReservationService.StockR
             _ => throw new RpcException(new Status(StatusCode.Internal, "Unexpected commit status."))
         };
     }
+
+    public override async Task<CancelCommittedReservationResponse> CancelCommittedReservation(
+        CancelCommittedReservationRequest request,
+        ServerCallContext context)
+    {
+        var validation = StockReservationRequestValidator.Validate(request);
+        if (!validation.IsValid)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, validation.ErrorMessage ?? "Invalid request."));
+        }
+
+        var reservationId = Guid.Parse(request.ReservationId);
+        var result = await _stockReservationService.CancelCommittedReservationAsync(reservationId, context.CancellationToken);
+
+        return result.Status switch
+        {
+            CancelCommittedResultStatus.NotFound =>
+                throw new RpcException(new Status(StatusCode.NotFound, result.Message ?? "Reservation not found.")),
+            CancelCommittedResultStatus.InvalidState =>
+                throw new RpcException(new Status(StatusCode.FailedPrecondition, result.Message ?? "Reservation is not committed.")),
+            CancelCommittedResultStatus.Success =>
+                new CancelCommittedReservationResponse { Success = true, Message = result.Message ?? "Committed reservation cancelled successfully." },
+            _ => throw new RpcException(new Status(StatusCode.Internal, "Unexpected cancellation status."))
+        };
+    }
 }

@@ -196,4 +196,49 @@ public sealed class CatalogStockGrpcClient : ICatalogStockClient
             return CatalogCommitResult.DownstreamError("Downstream network communication failure.");
         }
     }
+
+    public async Task<CatalogCancelCommittedResult> CancelCommittedReservationAsync(
+        Guid reservationId,
+        CancellationToken cancellationToken = default)
+    {
+        var request = new CancelCommittedReservationRequest
+        {
+            ReservationId = reservationId.ToString()
+        };
+
+        try
+        {
+            var response = await _grpcClient.CancelCommittedReservationAsync(
+                request,
+                deadline: GetDeadline(),
+                cancellationToken: cancellationToken);
+
+            return CatalogCancelCommittedResult.Success(response.Message ?? "Committed reservation cancelled.");
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+        {
+            _logger.LogWarning("Catalog reservation {ReservationId} not found during CancelCommitted.", reservationId);
+            return CatalogCancelCommittedResult.NotFound(ex.Status.Detail);
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.FailedPrecondition)
+        {
+            _logger.LogWarning("Catalog reservation {ReservationId} invalid state during CancelCommitted: {Detail}", reservationId, ex.Status.Detail);
+            return CatalogCancelCommittedResult.InvalidState(ex.Status.Detail);
+        }
+        catch (RpcException ex) when (ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded)
+        {
+            _logger.LogWarning(ex, "Catalog service unavailable or deadline exceeded during CancelCommitted (ReservationId: {ReservationId}).", reservationId);
+            return CatalogCancelCommittedResult.Unavailable("Catalog service is currently unavailable or timed out.");
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "Catalog service RpcException during CancelCommitted (ReservationId: {ReservationId}).", reservationId);
+            return CatalogCancelCommittedResult.DownstreamError($"Catalog service communication error: {ex.Status.Detail}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during CancelCommitted (ReservationId: {ReservationId}).", reservationId);
+            return CatalogCancelCommittedResult.DownstreamError("Downstream network communication failure.");
+        }
+    }
 }

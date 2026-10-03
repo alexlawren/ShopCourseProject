@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Shop.OrderService.Domain.Entities;
+using Shop.OrderService.Domain.Enums;
 
 namespace Shop.OrderService.Infrastructure.Persistence.Configurations;
 
@@ -40,6 +41,12 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
             .IsRequired()
             .HasConversion<string>()
             .HasMaxLength(32);
+
+        builder.Property(o => o.CancellationState)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .HasDefaultValue(CancellationState.None);
 
         builder.Property(o => o.TotalAmount)
             .IsRequired()

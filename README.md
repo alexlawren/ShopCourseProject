@@ -68,22 +68,24 @@ Implemented:
 - Atomic stock reservation with concurrent-safe updates and multi-item rollback.
 - Stock reservation persistence (`shop_catalog`, `AddStockReservations` migration).
 - Idempotent request handling via unique `RequestId`.
-- Release (inventory restoration) and Commit (permanent confirmation) semantics.
+- Release (inventory restoration), Commit (permanent confirmation), and CancelCommitted (restoring committed stock) semantics.
 - OrderService production Catalog gRPC client (`ICatalogStockClient`, `CatalogStockGrpcClient`) via shared `contracts/grpc/catalog_stock.proto`.
 - Checkout pipeline (`POST /api/orders`) with client-generated idempotent `RequestId`.
 - Order creation with immutable `OrderItem` snapshots (name, unit price, quantity, line total) and initial `OrderStatusHistory` ("Created").
 - Atomic local database transaction ensuring order persistence and cart clearance commit together.
 - Inter-service reservation orchestration (Reserve -> local save -> Commit, with automatic Release compensation prior to durable persistence).
 - Customer order read API (`GET /api/orders`, `GET /api/orders/{id}`) with strict per-user ownership isolation.
+- Simulated payment processing (`POST /api/orders/{id}/pay`) transitioning `Created → Confirmed` and `Pending → Paid`.
+- Complete order lifecycle state machine (`Created → Confirmed → Processing → Shipped → Completed`) with full `OrderStatusHistory` auditing.
+- Customer cancellation (`POST /api/orders/{id}/cancel`) and Admin cancellation (`POST /api/admin/orders/{id}/cancel`).
+- Safe committed inventory return via Catalog gRPC `CancelCommittedReservation` with 3-phase durable cancellation orchestration (`CancellationState.Pending`), preventing post-Catalog race conditions against Admin status updates (`ORDER_CANCELLATION_IN_PROGRESS`) and enabling idempotent failure recovery.
+- Admin order management API (`GET /api/admin/orders`, `GET /api/admin/orders/{id}`, `PATCH /api/admin/orders/{id}/status`, `POST /api/admin/orders/{id}/cancel`).
 
 Planned / not implemented:
 
-- Simulated payment processing.
-- Order processing lifecycle and status management API.
-- Order cancellation with inventory restoration.
-- Admin order management API.
 - SignalR realtime notifications.
 - YARP API Gateway.
 - Blazor WebAssembly UI.
 - Docker & Docker Compose setup.
+
 

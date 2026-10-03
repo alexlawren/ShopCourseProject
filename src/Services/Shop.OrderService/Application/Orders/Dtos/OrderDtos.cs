@@ -45,3 +45,32 @@ public sealed class PagedResult<T>
     public int TotalCount { get; init; }
     public int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 0;
 }
+
+public sealed class AdminOrderListItemDto
+{
+    public Guid Id { get; init; }
+    public Guid UserId { get; init; }
+    public string Status { get; init; } = string.Empty;
+    public string PaymentStatus { get; init; } = string.Empty;
+    public decimal TotalAmount { get; init; }
+    public DateTime CreatedAtUtc { get; init; }
+}
+
+public sealed class AdminOrderDetailsDto
+{
+    public Guid Id { get; init; }
+    public Guid UserId { get; init; }
+    public string Status { get; init; } = string.Empty;
+    public string PaymentStatus { get; init; } = string.Empty;
+    public decimal TotalAmount { get; init; }
+    public DateTime CreatedAtUtc { get; init; }
+    public DateTime UpdatedAtUtc { get; init; }
+    public IReadOnlyList<OrderItemDto> Items { get; init; } = Array.Empty<OrderItemDto>();
+    public IReadOnlyList<OrderStatusHistoryDto> StatusHistory { get; init; } = Array.Empty<OrderStatusHistoryDto>();
+}
+
+public sealed class AdminUpdateOrderStatusRequest
+{
+    public string Status { get; set; } = string.Empty;
+}
+

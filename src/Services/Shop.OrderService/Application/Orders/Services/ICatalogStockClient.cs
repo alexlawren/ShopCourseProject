@@ -101,6 +101,37 @@ public sealed class CatalogCommitResult
         new() { Status = CatalogCommitStatus.DownstreamError, Message = message };
 }
 
+public enum CatalogCancelCommittedStatus
+{
+    Success,
+    NotFound,
+    InvalidState,
+    Unavailable,
+    DownstreamError
+}
+
+public sealed class CatalogCancelCommittedResult
+{
+    public CatalogCancelCommittedStatus Status { get; init; }
+    public bool IsSuccess => Status == CatalogCancelCommittedStatus.Success;
+    public string? Message { get; init; }
+
+    public static CatalogCancelCommittedResult Success(string message) =>
+        new() { Status = CatalogCancelCommittedStatus.Success, Message = message };
+
+    public static CatalogCancelCommittedResult NotFound(string message) =>
+        new() { Status = CatalogCancelCommittedStatus.NotFound, Message = message };
+
+    public static CatalogCancelCommittedResult InvalidState(string message) =>
+        new() { Status = CatalogCancelCommittedStatus.InvalidState, Message = message };
+
+    public static CatalogCancelCommittedResult Unavailable(string message) =>
+        new() { Status = CatalogCancelCommittedStatus.Unavailable, Message = message };
+
+    public static CatalogCancelCommittedResult DownstreamError(string message) =>
+        new() { Status = CatalogCancelCommittedStatus.DownstreamError, Message = message };
+}
+
 public interface ICatalogStockClient
 {
     Task<CatalogReserveResult> ReserveStockAsync(
@@ -115,4 +146,9 @@ public interface ICatalogStockClient
     Task<CatalogCommitResult> CommitReservationAsync(
         Guid reservationId,
         CancellationToken cancellationToken = default);
+
+    Task<CatalogCancelCommittedResult> CancelCommittedReservationAsync(
+        Guid reservationId,
+        CancellationToken cancellationToken = default);
 }
+

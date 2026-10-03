@@ -88,13 +88,14 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
   - Internal service-to-service communication only; never exposed publicly or via Gateway.
 - **Not yet implemented**: SignalR realtime updates.
 
-### OrderService (partially implemented — Change-set №5C.1)
+### OrderService (partially implemented — Change-set №5C.2)
 
 - **JWT Authentication**: Independently validates JWT tokens issued by `IdentityService` using the symmetric signing key (`Jwt:Key`), validating Issuer, Audience, Lifetime, and Signing Key (`MapInboundClaims = false`, `NameClaimType = "sub"`).
-- **Persistence Foundation**: Dedicated PostgreSQL database `shop_orders` with EF Core migrations `InitialOrders` and `AddCheckoutMetadata`.
+- **Persistence Foundation**: Dedicated PostgreSQL database `shop_orders` with EF Core migrations `InitialOrders`, `AddCheckoutMetadata`, and `AddOrderCancellationState`.
 - **Domain Entities**: `Cart`, `CartItem`, `Order`, `OrderItem`, `OrderStatusHistory`.
 - **Checkout Metadata**: `Order.CheckoutRequestId` (unique index, idempotency key) and `Order.ReservationId` (unique index, catalog correlation).
-- **Enums**: `OrderStatus` (`Created`, `Confirmed`, `Processing`, `Shipped`, `Completed`, `Cancelled`) and `PaymentStatus` (`Pending`, `Paid`, `Cancelled`) stored as strings via `HasConversion<string>()`.
+- **Cancellation Metadata**: `Order.CancellationState` (`None`, `Pending`) stored as string via `HasConversion<string>()` with default `'None'`.
+- **Enums**: `OrderStatus` (`Created`, `Confirmed`, `Processing`, `Shipped`, `Completed`, `Cancelled`), `PaymentStatus` (`Pending`, `Paid`, `Cancelled`), and `CancellationState` (`None`, `Pending`) stored as strings via `HasConversion<string>()`.
 - **Database Constraints**: Unique index on `Cart.UserId` (one cart per user), unique composite index on `(CartId, ProductId)`, unique index on `Order.CheckoutRequestId`, unique index on `Order.ReservationId`, check constraints on `CartItem.Quantity > 0`, `OrderItem.Quantity > 0`, `OrderItem.UnitPrice >= 0`, `OrderItem.LineTotal >= 0`, `Order.TotalAmount >= 0`, decimal(18,2) money precision.
 - **Authenticated Cart API**: Lazy cart creation, increment semantics on repeated item addition, absolute quantity update, item removal, and full cart clear.
 - **Production gRPC Client**:
@@ -118,7 +119,29 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
 - **Order Read API & User Isolation**:
   - `GET /api/orders`: paginated list of current customer's orders sorted by `CreatedAtUtc DESC`.
   - `GET /api/orders/{id}`: returns full order details, snapshot items, and status history. Returns 404 Not Found if the order belongs to another customer (preventing ID enumeration).
-- **Not yet implemented**: Simulated payment, order status transitions and lifecycle management API, cancellation with stock release, Admin order API, SignalR realtime notifications.
+- **Simulated Payment**:
+  - `POST /api/orders/{id}/pay` (Owner only).
+  - Transitions `PaymentStatus` from `Pending` to `Paid`, and `OrderStatus` from `Created` to `Confirmed`.
+  - Idempotent on repeated calls; rejects cancelled orders with 409 Conflict `PAYMENT_CANCELLED`.
+  - Rejects orders undergoing cancellation with 409 Conflict `ORDER_CANCELLATION_IN_PROGRESS`.
+  - No external payment provider integrated.
+- **Order Lifecycle & State Machine**:
+  - `Created → Confirmed → Processing → Shipped → Completed` (terminal).
+  - Cancellations allowed from `Created`, `Confirmed`, `Processing` to `Cancelled` (terminal).
+  - Cancellations forbidden once `Shipped` or `Completed`.
+- **3-Phase Durable Cancellation Orchestration & Stock Restoration**:
+  - Customer (`POST /api/orders/{id}/cancel`) and Admin (`POST /api/admin/orders/{id}/cancel`).
+  - **Phase A (Local Durable Intent)**: In an isolated local transaction under row lock (`FOR UPDATE`), checks `CanCancel` and durably persists `Order.CancellationState = CancellationState.Pending`.
+  - **Phase B (Catalog Stock Return)**: Calls Catalog gRPC `CancelCommittedReservation(ReservationId)` to safely restore stock in `shop_catalog`. If Catalog is unreachable, returns 503 Service Unavailable while order remains `Pending`.
+  - **Phase C (Local Finalization)**: In a new local transaction under row lock, sets `OrderStatus = Cancelled`, `PaymentStatus = Cancelled`, `CancellationState = None`, and records one `OrderStatusHistory` entry.
+  - **Failure Recovery**: If local finalization in Phase C fails, `CancellationState` remains durable `Pending`. Concurrent Admin fulfillment (`Processing → Shipped`) and payment (`POST /pay`) are blocked with HTTP 409 `ORDER_CANCELLATION_IN_PROGRESS`. Retrying cancel performs an idempotent Catalog call and completes Phase C finalization.
+- **Admin Order Management**:
+  - `GET /api/admin/orders`: paginated list with optional status/paymentStatus filtering.
+  - `GET /api/admin/orders/{id}`: full details including `UserId`.
+  - `PATCH /api/admin/orders/{id}/status`: advances lifecycle (`Confirmed → Processing`, `Processing → Shipped`, `Shipped → Completed`). Generic status PATCH cannot cancel orders. Disallowed when `CancellationState == Pending` (returns 409 `ORDER_CANCELLATION_IN_PROGRESS`).
+  - `POST /api/admin/orders/{id}/cancel`: cancels order without owner check using 3-phase orchestration.
+  - Zero direct access to Identity DB (`shop_identity`) or Catalog DB (`shop_catalog`).
+- **Not yet implemented**: SignalR realtime notifications, YARP API Gateway, Blazor WebAssembly frontend, Docker/Docker Compose.
 
 ## Technologies Intentionally Excluded in v1
 

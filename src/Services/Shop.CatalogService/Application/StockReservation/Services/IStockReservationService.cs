@@ -16,4 +16,8 @@ public interface IStockReservationService
     Task<CommitReservationResult> CommitReservationAsync(
         Guid reservationId,
         CancellationToken cancellationToken = default);
+
+    Task<CancelCommittedReservationResult> CancelCommittedReservationAsync(
+        Guid reservationId,
+        CancellationToken cancellationToken = default);
 }

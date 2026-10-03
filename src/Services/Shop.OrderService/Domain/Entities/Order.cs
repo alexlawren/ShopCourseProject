@@ -10,6 +10,7 @@ public sealed class Order
     public Guid ReservationId { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.Created;
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Pending;
+    public CancellationState CancellationState { get; set; } = CancellationState.None;
     public decimal TotalAmount { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }

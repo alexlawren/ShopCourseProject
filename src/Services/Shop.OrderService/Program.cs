@@ -65,6 +65,8 @@ builder.Services.AddScoped<ICartService, CartService>();
 builder.Services.AddScoped<ICatalogStockClient, CatalogStockGrpcClient>();
 builder.Services.AddScoped<ICheckoutService, CheckoutService>();
 builder.Services.AddScoped<IOrderQueryService, OrderQueryService>();
+builder.Services.AddScoped<IOrderManagementService, OrderManagementService>();
+
 
 // --------------- Controllers & Error Handling ---------------
 builder.Services.AddControllers();

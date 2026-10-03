@@ -1,133 +1,159 @@
 # Orders & Checkout API Specification
 
 **Service**: `Shop.OrderService`  
-**Base Path**: `/api/orders`  
+**Base Paths**: `/api/orders`, `/api/admin/orders`  
 **Authentication**: JWT Bearer (`Authorization: Bearer <token>`) — Required for all endpoints.
 
 ---
 
 ## Overview
 
-The Orders API provides checkout processing and customer order history. Checkout coordinates customer carts with the catalog inventory via internal gRPC (`contracts/grpc/catalog_stock.proto`).
-
-> **Note**: Payment simulation, order status transitions, and cancellation workflows are scheduled for Change-set №5C.2.
+The Orders API provides checkout processing, simulated payment, order lifecycle transitions, customer cancellations, and administrative order fulfillment. Checkout and cancellation coordinate with the catalog inventory via internal gRPC (`contracts/grpc/catalog_stock.proto`).
 
 ---
 
-## Endpoints
+## State Machines
 
-### 1. Checkout (Create Order)
+### Order Lifecycle
 
-Atomically executes the checkout pipeline:
-1. Validates `requestId` idempotency key.
-2. Checks for existing order (fast-path retry).
-3. Reads and snapshots current customer cart.
-4. Calls Catalog `ReserveStock` via internal gRPC.
-5. Verifies cart remained unmodified concurrently.
-6. Persists `Order`, immutable `OrderItem` snapshots, initial `OrderStatusHistory` ("Created"), and clears cart items within a single local database transaction.
-7. Calls Catalog `CommitReservation` via internal gRPC to finalize inventory reservation.
-
-- **Method**: `POST`
-- **Path**: `/api/orders`
-- **Headers**:
-  - `Content-Type: application/json`
-  - `Authorization: Bearer <token>`
-
-#### Request Body
-```json
-{
-  "requestId": "e3e7ada6-6a34-4edf-ba93-c7d96ac682ab"
-}
+```
+Created
+  ├──→ Confirmed ──→ Processing ──→ Shipped ──→ Completed (Terminal)
+  │        │             │
+  └───┬────┴─────────────┘
+      ▼
+  Cancelled (Terminal)
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `requestId` | `uuid` | Yes | Client-generated unique idempotency identifier. Cannot be `00000000-0000-0000-0000-000000000000`. |
+- **Allowed Forward Transitions**:
+  - `Created → Confirmed` (via simulated payment or manual Admin confirmation)
+  - `Confirmed → Processing` (Admin fulfillment)
+  - `Processing → Shipped` (Admin fulfillment)
+  - `Shipped → Completed` (Admin fulfillment)
+- **Allowed Cancellation Transitions**:
+  - `Created → Cancelled`
+  - `Confirmed → Cancelled`
+  - `Processing → Cancelled`
+- **Forbidden Transitions**:
+  - `Shipped → Cancelled` (409 Conflict: order already shipped)
+  - `Completed → Cancelled` (409 Conflict: order completed)
+  - `Cancelled → any` (terminal state)
+  - Any backwards or skip transition (e.g. `Created → Processing`, `Confirmed → Completed`, `Completed → Processing`).
 
-#### Response — 201 Created (Initial Success)
-Returned on the first successful checkout for a given `requestId`.
-- **Headers**: `Location: /api/orders/{orderId}`
+### Payment Lifecycle
+
+```
+Pending ──→ Paid
+   │          │
+   └──┬───────┘ (Cancellation)
+      ▼
+  Cancelled
+```
+
+- `Pending → Paid`: Triggered via `POST /api/orders/{id}/pay`.
+- `Pending → Cancelled`: When unpaid `Created` order is cancelled.
+- `Paid → Cancelled`: When paid `Confirmed` or `Processing` order is cancelled.  
+  *(For this course project, cancelling a paid order represents a simulated refund/void; no external payment gateway is integrated).*
+
+---
+
+## Customer Endpoints
+
+### 1. Checkout (Create Order)
+- **Method**: `POST`
+- **Path**: `/api/orders`
+- **Headers**: `Authorization: Bearer <token>`
+- **Body**: `{ "requestId": "<guid>" }`
+- **Response**: `201 Created` with `OrderDetailsDto` (or `200 OK` on idempotent retry).
+
+### 2. List Customer Orders
+- **Method**: `GET`
+- **Path**: `/api/orders?page=1&pageSize=20`
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `200 OK` with `PagedResult<OrderListItemDto>`.
+
+### 3. Get Order By Id
+- **Method**: `GET`
+- **Path**: `/api/orders/{id}`
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `200 OK` with `OrderDetailsDto` (or `404 Not Found` if non-existent or owned by another user).
+
+### 4. Pay Order (Simulated Payment)
+Executes simulated payment for an order owned by the caller:
+- If `CancellationState == Pending`: `409 Conflict` (`ORDER_CANCELLATION_IN_PROGRESS`). Payment cannot occur while cancellation is in progress.
+- If `PaymentStatus == Paid`: Idempotent `200 OK` (no state or history change).
+- If `PaymentStatus == Cancelled` or `OrderStatus == Cancelled`: `409 Conflict` (`PAYMENT_CANCELLED`).
+- Transitions `PaymentStatus` from `Pending` to `Paid`.
+- If `OrderStatus == Created`: transitions to `Confirmed` and logs history entry.
+- **Method**: `POST`
+- **Path**: `/api/orders/{id}/pay`
+- **Headers**: `Authorization: Bearer <token>`
+- **Response — 200 OK**:
 ```json
 {
   "id": "874d3220-9b6b-4da8-97b2-a82a42082523",
-  "status": "Created",
-  "paymentStatus": "Pending",
+  "status": "Confirmed",
+  "paymentStatus": "Paid",
   "totalAmount": 226.00,
   "createdAtUtc": "2026-10-02T19:47:12.123456Z",
-  "updatedAtUtc": "2026-10-02T19:47:12.123456Z",
-  "items": [
-    {
-      "productId": "3717ad17-e5c7-414d-a964-b8b77268a253",
-      "productName": "Product A",
-      "unitPrice": 100.50,
-      "quantity": 2,
-      "lineTotal": 201.00
-    },
-    {
-      "productId": "01490b5b-4e89-44bd-8531-6320a0ba8499",
-      "productName": "Product B",
-      "unitPrice": 25.00,
-      "quantity": 1,
-      "lineTotal": 25.00
-    }
-  ],
+  "updatedAtUtc": "2026-10-02T19:48:05.654321Z",
+  "items": [...],
   "statusHistory": [
-    {
-      "status": "Created",
-      "changedAtUtc": "2026-10-02T19:47:12.123456Z"
-    }
+    { "status": "Created", "changedAtUtc": "2026-10-02T19:47:12.123456Z" },
+    { "status": "Confirmed", "changedAtUtc": "2026-10-02T19:48:05.654321Z" }
   ]
 }
 ```
+- **Error Responses**:
+  - `401 Unauthorized`
+  - `404 Not Found` (if not found or wrong owner)
+  - `409 Conflict` (`ORDER_CANCELLATION_IN_PROGRESS`, `PAYMENT_CANCELLED`)
 
-#### Response — 200 OK (Idempotent Duplicate)
-Returned when a request with an already-processed `requestId` is repeated by the same customer.
-- Retries `CommitReservation` if previously unconfirmed.
-- Returns the exact existing order without re-reserving stock or charging twice.
-
-#### Error Responses
-- **400 Bad Request**:
-  - `INVALID_REQUEST_ID`: Empty or invalid GUID `requestId`.
-  - `EMPTY_CART`: Customer cart is empty.
-  - `CART_TOO_LARGE`: Cart exceeds 100 distinct items limit.
-- **401 Unauthorized**: Missing, expired, or invalid JWT token.
-- **404 Not Found**: Cart not found.
-- **409 Conflict**:
-  - `OUT_OF_STOCK`: One or more items have insufficient stock.
-  - `PRODUCT_NOT_FOUND`: An item in the cart does not exist in catalog.
-  - `PRODUCT_INACTIVE`: An item in the cart is inactive.
-  - `CATEGORY_INACTIVE`: Category of an item is inactive.
-  - `CART_CHANGED`: Cart was concurrently modified during checkout (reservation automatically released).
-  - `REQUEST_ID_CONFLICT`: The `requestId` was already used by a different customer.
-- **502 Bad Gateway**: Downstream gRPC protocol error or response validation failure (`DOWNSTREAM_ERROR`).
-- **503 Service Unavailable**: Catalog service timed out or is unreachable (`CATALOG_UNAVAILABLE`).
-  - *If returned after local order persistence*: Client must retry with the same `requestId`; fast-path will retry `CommitReservation`.
+### 5. Cancel Customer Order
+Cancels an order owned by the caller using a durable 3-phase orchestration algorithm:
+- Allowed only when `OrderStatus` is `Created`, `Confirmed`, or `Processing`.
+- If already `Cancelled`: Idempotent `200 OK` (returns current order, no stock change).
+- If `Shipped` or `Completed`: `409 Conflict` (`ORDER_CANNOT_BE_CANCELLED`).
+- **Phase A (Local Durable Intent)**: Under PostgreSQL row lock (`FOR UPDATE`), verifies state and persists `CancellationState = Pending` to `shop_orders`.
+- **Phase B (Catalog Stock Return)**: Calls Catalog gRPC `CancelCommittedReservation(ReservationId)` to safely restore reserved stock. If Catalog returns `503 Unavailable`, order remains `Pending` and client retries.
+- **Phase C (Local Finalization)**: Under a new row lock, updates `OrderStatus = Cancelled`, `PaymentStatus = Cancelled`, `CancellationState = None`, and logs a single history entry.
+- **Retry Recovery**: If Phase C fails or is interrupted, the order remains durable `Pending`. A repeated cancel request automatically resumes Phase B/C (idempotent gRPC call) and finalizes to `Cancelled`.
+- **Method**: `POST`
+- **Path**: `/api/orders/{id}/cancel`
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `200 OK` with updated `OrderDetailsDto`.
+- **Error Responses**:
+  - `401 Unauthorized`
+  - `404 Not Found`
+  - `409 Conflict` (`ORDER_CANNOT_BE_CANCELLED`)
+  - `502 Bad Gateway` (`DOWNSTREAM_ERROR`)
+  - `503 Service Unavailable` (`CATALOG_UNAVAILABLE`)
 
 ---
 
-### 2. List Customer Orders
+## Admin Endpoints
 
-Returns a paginated list of orders owned by the authenticated customer, sorted by `createdAtUtc` descending.
+All admin endpoints require `[Authorize(Roles = "Admin")]`. Anonymous requests receive `401 Unauthorized`; customers receive `403 Forbidden`.
 
+### 1. List All Orders
+Returns a paginated list of all customer orders, sorted by `createdAtUtc` descending.
 - **Method**: `GET`
-- **Path**: `/api/orders?page=1&pageSize=20`
-- **Headers**:
-  - `Authorization: Bearer <token>`
-
-#### Query Parameters
-| Parameter | Type | Default | Constraints | Description |
-|---|---|---|---|---|
-| `page` | `int` | `1` | `>= 1` | Page number. |
-| `pageSize` | `int` | `20` | `1..100` | Number of items per page. |
-
-#### Response — 200 OK
+- **Path**: `/api/admin/orders?page=1&pageSize=20&status=Confirmed&paymentStatus=Paid`
+- **Headers**: `Authorization: Bearer <admin-token>`
+- **Query Parameters**:
+  - `page` (`int`, default `1`, `>= 1`)
+  - `pageSize` (`int`, default `20`, `1..100`)
+  - `status` (`string`, optional filter: `Created`, `Confirmed`, `Processing`, `Shipped`, `Completed`, `Cancelled`)
+  - `paymentStatus` (`string`, optional filter: `Pending`, `Paid`, `Cancelled`)
+- **Response — 200 OK**:
 ```json
 {
   "items": [
     {
       "id": "874d3220-9b6b-4da8-97b2-a82a42082523",
-      "status": "Created",
-      "paymentStatus": "Pending",
+      "userId": "01a0fe26-4f1a-7946-a084-d03b518fe722",
+      "status": "Confirmed",
+      "paymentStatus": "Paid",
       "totalAmount": 226.00,
       "createdAtUtc": "2026-10-02T19:47:12.123456Z"
     }
@@ -139,67 +165,60 @@ Returns a paginated list of orders owned by the authenticated customer, sorted b
 }
 ```
 
----
-
-### 3. Get Order By Id
-
-Retrieves complete order details including immutable items snapshot and status history.
-
+### 2. Get Order Details (Admin)
+Returns complete details including `userId`, item snapshots, and history.
 - **Method**: `GET`
-- **Path**: `/api/orders/{id}`
-- **Headers**:
-  - `Authorization: Bearer <token>`
+- **Path**: `/api/admin/orders/{id}`
+- **Headers**: `Authorization: Bearer <admin-token>`
+- **Response**: `200 OK` with `AdminOrderDetailsDto` (or `404 Not Found`).
 
-#### Response — 200 OK
-Returns `OrderDetailsDto` matching the schema shown in `POST /api/orders`.
+### 3. Update Order Status (Fulfillment Lifecycle)
+Advances order through the fulfillment pipeline (`Confirmed → Processing`, `Processing → Shipped`, `Shipped → Completed`).
+- **Forbidden**: Passing `"status": "Cancelled"` via this generic status patch returns `409 Conflict` (cancellation must use the dedicated cancellation endpoint to guarantee stock restoration).
+- **Idempotent**: Re-applying the current status returns `200 OK` without duplicating history.
+- **Method**: `PATCH`
+- **Path**: `/api/admin/orders/{id}/status`
+- **Headers**: `Authorization: Bearer <admin-token>`
+- **Request Body**:
+```json
+{
+  "status": "Processing"
+}
+```
+- **Response**: `200 OK` with updated `AdminOrderDetailsDto`.
+- **Error Responses**:
+  - `400 Bad Request` (`INVALID_STATUS`)
+  - `404 Not Found`
+  - `409 Conflict` (`ORDER_CANCELLATION_IN_PROGRESS`, `INVALID_ORDER_TRANSITION`)
 
-#### Response — 404 Not Found
-Returned if the order does not exist OR if the order belongs to another customer.  
-*(403 Forbidden is intentionally avoided to prevent unauthorized ID enumeration/probing).*
+### 4. Admin Cancel Order
+Allows administrators to cancel orders in `Created`, `Confirmed`, or `Processing` status without owner restriction. Uses the exact same 3-phase concurrency-safe stock return logic as customer cancellation.
+- **Method**: `POST`
+- **Path**: `/api/admin/orders/{id}/cancel`
+- **Headers**: `Authorization: Bearer <admin-token>`
+- **Response**: `200 OK` with `AdminOrderDetailsDto`.
+- **Error Responses**:
+  - `404 Not Found`
+  - `409 Conflict` (`ORDER_CANNOT_BE_CANCELLED`)
+  - `502 Bad Gateway` (`DOWNSTREAM_ERROR`)
+  - `503 Service Unavailable` (`CATALOG_UNAVAILABLE`)
 
 ---
 
-## Idempotency and Failure Compensation Rules
+## Concurrency and Race Coordination
 
-```
-                      +-------------------+
-                      |   Customer Cart   |
-                      +-------------------+
-                                |
-                                v
-               [gRPC] ReserveStock(requestId)
-                                |
-                +---------------+---------------+
-                |                               |
-          Success: true                   Success: false
-                |                               |
-                v                               v
-    Verify Cart Unchanged               Return 409 Conflict
-                |                         (no order created)
-    +-----------+-----------+
-    |                       |
-Cart OK                Cart Changed
-    |                       |
-    v                       v
-Local DB Save           [gRPC] ReleaseReservation
-(Order + clear cart)        |
-    |                       v
-    |                  Return 409 CART_CHANGED
-    +-----------+
-    |           |
- Success     Failure
-    |           |
-    v           v
-[gRPC] Commit  [gRPC] ReleaseReservation
-    |           |
-    v           v
-201 Created    Return 500 / 409
-```
+### Cancel vs Admin Ship Race & Distributed Consistency
+When an order in `Processing` status is concurrently cancelled and marked as `Shipped`:
 
-### Critical Consistency Rules
-1. **Before Durable Order Persistence**:
-   - If cart changed or local DB fails: call `ReleaseReservation(reservationId)` to restore stock immediately.
-2. **After Durable Order Persistence**:
-   - **NEVER** call `ReleaseReservation` after local order commit.
-   - If downstream `CommitReservation` fails (network glitch / timeout): return `503 Service Unavailable`.
-   - On retry with the same `requestId`, the idempotent fast-path finds the existing order and retries `CommitReservation`.
+1. **Durable Local Intent (Phase A)**:
+   - Cancel acquires a PostgreSQL row lock (`SELECT 1 FROM "Orders" WHERE "Id" = @id FOR UPDATE`) and sets `CancellationState = Pending`, committing immediately.
+2. **Catalog Stock Restoration (Phase B)**:
+   - Cancel invokes Catalog gRPC `CancelCommittedReservation`. Catalog atomically sets reservation to `Cancelled` and refunds `StockQuantity`.
+3. **Local Finalization (Phase C)**:
+   - Cancel acquires a second row lock, updates `Status = Cancelled`, `PaymentStatus = Cancelled`, `CancellationState = None`, and logs one history entry.
+
+#### Distributed Race Closed:
+- **Admin Status Transition Protection**: If an Admin attempts to change order status (e.g. `Processing → Shipped`) while `CancellationState == Pending`, the request is immediately rejected with `409 Conflict` (`ORDER_CANCELLATION_IN_PROGRESS`).
+- **Simulated Payment Protection**: If a customer attempts to pay an order while `CancellationState == Pending`, the request is rejected with `409 Conflict` (`ORDER_CANCELLATION_IN_PROGRESS`).
+- **Post-Catalog-Success Local Finalization Failure**: If Phase B succeeds (stock is restored in Catalog) but OrderService crashes or fails its local transaction during Phase C, the order remains safely locked in `CancellationState = Pending`. Admin `Shipped` is blocked (409 Conflict). A subsequent retry of `CancelOrder` resumes orchestration, calls Catalog's idempotent gRPC endpoint, and successfully finalizes the local order to `Cancelled` without duplicate stock refunds or duplicate history records.
+- **Invariant**: It is impossible for an order to be marked `Shipped` while stock is refunded, or marked `Cancelled` without stock being refunded.

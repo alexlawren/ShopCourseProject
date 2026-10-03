@@ -10,6 +10,7 @@ public static class StockReservationStateMachine
             StockReservationStatus.Reserved => true,
             StockReservationStatus.Committed => true, // idempotent
             StockReservationStatus.Released => false,
+            StockReservationStatus.Cancelled => false,
             _ => false
         };
 
@@ -19,6 +20,17 @@ public static class StockReservationStateMachine
             StockReservationStatus.Reserved => true,
             StockReservationStatus.Released => true, // idempotent
             StockReservationStatus.Committed => false,
+            StockReservationStatus.Cancelled => false,
+            _ => false
+        };
+
+    public static bool CanCancelCommitted(StockReservationStatus currentStatus) =>
+        currentStatus switch
+        {
+            StockReservationStatus.Committed => true,
+            StockReservationStatus.Cancelled => true, // idempotent
+            StockReservationStatus.Reserved => false,
+            StockReservationStatus.Released => false,
             _ => false
         };
 }
