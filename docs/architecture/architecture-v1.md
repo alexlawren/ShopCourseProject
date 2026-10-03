@@ -5,7 +5,7 @@
 | Component              | Type                 | Description                                                |
 | ---------------------- | -------------------- | ---------------------------------------------------------- |
 | `Shop.Web`             | Blazor WebAssembly   | Web-client for users and administrators                    |
-| `Shop.Gateway`         | ASP.NET Core         | Single entry point; YARP-based API Gateway (planned)       |
+| `Shop.Gateway`         | ASP.NET Core         | Single entry point; YARP-based API Gateway                 |
 | `Shop.IdentityService` | ASP.NET Core Web API | Users, roles (Customer/Admin), JWT, refresh tokens         |
 | `Shop.CatalogService`  | ASP.NET Core Web API | Categories, products, search, stock reservation            |
 | `Shop.OrderService`    | ASP.NET Core Web API | Cart, order processing, order statuses, payment simulation |
@@ -159,7 +159,25 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
   - Automatic group management on connection: partitions connections into `user:{userId}` (extracted securely from token `sub` claim) and `admins` (for users with `Admin` role claim). Client-side group manipulation is forbidden.
   - Dispatches `OrderCreated` (after successful checkout and Catalog stock reservation confirmation), `OrderStatusChanged` (lifecycle progression, payment confirmation, cancellation), and `PaymentStatusChanged` (payment simulation, cancellation).
   - Strict transaction boundary: all SignalR notifications are dispatched strictly after local database transaction commits; failures are logged and never rollback business data.
-- **Not yet implemented**: YARP API Gateway, Blazor WebAssembly frontend, Docker/Docker Compose.
+
+### Gateway (implemented — Change-set №7)
+
+- **Technology**: ASP.NET Core with `Yarp.ReverseProxy` (2.3.0).
+- **Single Entry Point**: Unified external gateway for all external REST, static product image, and SignalR WebSocket traffic.
+- **Path-Based Routing**:
+  - `/api/auth/{**catch-all}` → `IdentityService` (`http://localhost:5078/`)
+  - `/api/catalog/{**catch-all}` → `CatalogService` (`http://localhost:5058/`)
+  - `/product-images/{**catch-all}` → `CatalogService` (`http://localhost:5058/`)
+  - `/api/cart` and `/api/cart/{**catch-all}` → `OrderService` (`http://localhost:5141/`)
+  - `/api/orders` and `/api/orders/{**catch-all}` → `OrderService` (`http://localhost:5141/`)
+  - `/api/admin/orders` and `/api/admin/orders/{**catch-all}` → `OrderService` (`http://localhost:5141/`)
+  - `/hubs/catalog` and `/hubs/catalog/{**catch-all}` → `CatalogService` (`http://localhost:5058/`)
+  - `/hubs/orders` and `/hubs/orders/{**catch-all}` → `OrderService` (`http://localhost:5141/`)
+- **Transparent Security Boundary**: Gateway does not validate or duplicate JWT authorization; downstream services remain the security boundary and validate JWT tokens independently. `Authorization: Bearer <token>` header is forwarded transparently.
+- **WebSocket Upgrade Support**: Seamless WebSocket proxying for SignalR hubs with query string token preservation (`access_token`).
+- **Internal Service Isolation**: CatalogService internal gRPC endpoint (port 5059) is **strictly not exposed** through the Gateway. OrderService connects to CatalogService gRPC directly.
+- **Gateway Health**: Dedicated `/health` probe endpoint returning `200 OK`.
+- **Not yet implemented**: Blazor WebAssembly frontend, Docker/Docker Compose.
 
 ## Technologies Intentionally Excluded in v1
 

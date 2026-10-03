@@ -87,11 +87,18 @@ Implemented:
 - SignalR CatalogHub (`/hubs/catalog`, public receive-only).
 - Real-time catalog events (`ProductChanged`, `StockChanged` on Admin adjustments, gRPC reserve, release, cancel committed).
 - WebSocket smoke verification.
+- YARP API Gateway (`Shop.Gateway`).
+- Unified external entry point for REST, static product images, and SignalR WebSocket.
+- Identity REST routing (`/api/auth/*`).
+- Catalog REST and static product images routing (`/api/catalog/*`, `/product-images/*`).
+- Order, Cart, and Admin Order REST routing (`/api/cart*`, `/api/orders*`, `/api/admin/orders*`).
+- SignalR WebSocket proxying (`/hubs/orders*`, `/hubs/catalog*`) with access token preservation.
+- Gateway health endpoint (`GET /health`).
 
 Planned / not implemented:
 
-- YARP Gateway.
 - Blazor WebAssembly.
 - Docker Compose.
+- Final end-to-end validation.
 
 
