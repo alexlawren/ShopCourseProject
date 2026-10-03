@@ -101,6 +101,30 @@ app.MapHub<Shop.OrderService.Hubs.OrderHub>("/hubs/orders");
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "OrderService" }));
 
+// --------------- Apply EF Migrations ---------------
+using (var scope = app.Services.CreateScope())
+{
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+    const int maxRetries = 10;
+    for (var attempt = 1; attempt <= maxRetries; attempt++)
+    {
+        try
+        {
+            logger.LogInformation("Applying Order EF migrations (attempt {Attempt}/{MaxRetries})...", attempt, maxRetries);
+            await dbContext.Database.MigrateAsync();
+            logger.LogInformation("Order EF migrations applied successfully.");
+            break;
+        }
+        catch (Exception ex) when (attempt < maxRetries)
+        {
+            logger.LogWarning(ex, "Failed to apply Order EF migrations on attempt {Attempt}. Retrying in 2 seconds...", attempt);
+            await Task.Delay(2000);
+        }
+    }
+}
+
 app.Run();
 
 public partial class Program;
+

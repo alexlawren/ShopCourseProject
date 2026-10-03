@@ -21,9 +21,33 @@ var app = builder.Build();
 
 app.UseCors();
 
+var wwwrootPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+var hasStaticWebRoot = Directory.Exists(wwwrootPath);
+if (hasStaticWebRoot)
+{
+    var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+    provider.Mappings[".wasm"] = "application/wasm";
+    provider.Mappings[".br"] = "application/octet-stream";
+    provider.Mappings[".gz"] = "application/octet-stream";
+    provider.Mappings[".pdb"] = "application/octet-stream";
+
+    app.UseDefaultFiles();
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        ContentTypeProvider = provider
+    });
+}
+
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Gateway" }));
 
+app.UseWebSockets();
+
 app.MapReverseProxy();
+
+if (hasStaticWebRoot && File.Exists(Path.Combine(wwwrootPath, "index.html")))
+{
+    app.MapFallbackToFile("index.html");
+}
 
 app.Run();
 

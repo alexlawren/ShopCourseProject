@@ -84,7 +84,32 @@ app.MapControllers();
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "IdentityService" }));
 
-// --------------- Seed roles ---------------
+// --------------- Apply EF Migrations & Seed roles ---------------
+using (var scope = app.Services.CreateScope())
+{
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+    const int maxRetries = 10;
+    for (var attempt = 1; attempt <= maxRetries; attempt++)
+    {
+        try
+        {
+            logger.LogInformation("Applying Identity EF migrations (attempt {Attempt}/{MaxRetries})...", attempt, maxRetries);
+            await dbContext.Database.MigrateAsync();
+            logger.LogInformation("Identity EF migrations applied successfully.");
+            break;
+        }
+        catch (Exception ex) when (attempt < maxRetries)
+        {
+            logger.LogWarning(ex, "Failed to apply Identity EF migrations on attempt {Attempt}. Retrying in 2 seconds...", attempt);
+            await Task.Delay(2000);
+        }
+    }
+}
+
 await IdentityDataSeeder.SeedAsync(app.Services);
 
 app.Run();
+
+public partial class Program;
+

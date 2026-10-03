@@ -1,0 +1,38 @@
+# Stage 1: Build & Publish Shop.Web (Blazor WASM)
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS web-build
+WORKDIR /src
+
+COPY Directory.Build.props ./
+COPY src/Shop.Web/Shop.Web.csproj src/Shop.Web/
+
+RUN dotnet restore src/Shop.Web/Shop.Web.csproj
+
+COPY src/Shop.Web/ src/Shop.Web/
+
+RUN dotnet publish src/Shop.Web/Shop.Web.csproj \
+    -c Release \
+    -o /app/web-publish \
+    --no-restore
+
+# Stage 2: Build & Publish Shop.Gateway
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS gateway-build
+WORKDIR /src
+
+COPY Directory.Build.props ./
+COPY src/Shop.Gateway/Shop.Gateway.csproj src/Shop.Gateway/
+
+RUN dotnet restore src/Shop.Gateway/Shop.Gateway.csproj
+
+COPY src/Shop.Gateway/ src/Shop.Gateway/
+
+RUN dotnet publish src/Shop.Gateway/Shop.Gateway.csproj \
+    -c Release \
+    -o /app/gateway-publish \
+    --no-restore
+
+# Stage 3: Runtime
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+WORKDIR /app
+COPY --from=gateway-build /app/gateway-publish .
+COPY --from=web-build /app/web-publish/wwwroot ./wwwroot
+ENTRYPOINT ["dotnet", "Shop.Gateway.dll"]

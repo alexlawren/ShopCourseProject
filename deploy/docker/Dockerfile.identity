@@ -1,0 +1,21 @@
+# Stage 1: Build & Publish
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+COPY Directory.Build.props ./
+COPY src/Services/Shop.IdentityService/Shop.IdentityService.csproj src/Services/Shop.IdentityService/
+
+RUN dotnet restore src/Services/Shop.IdentityService/Shop.IdentityService.csproj
+
+COPY src/Services/Shop.IdentityService/ src/Services/Shop.IdentityService/
+
+RUN dotnet publish src/Services/Shop.IdentityService/Shop.IdentityService.csproj \
+    -c Release \
+    -o /app/publish \
+    --no-restore
+
+# Stage 2: Runtime
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "Shop.IdentityService.dll"]

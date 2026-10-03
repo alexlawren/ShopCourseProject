@@ -12,7 +12,8 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 var gatewayBaseUrl = builder.Configuration["Gateway:BaseUrl"];
 if (string.IsNullOrWhiteSpace(gatewayBaseUrl))
 {
-    gatewayBaseUrl = "http://localhost:5210";
+    gatewayBaseUrl = builder.HostEnvironment.BaseAddress;
+    builder.Configuration["Gateway:BaseUrl"] = gatewayBaseUrl;
 }
 
 builder.Services.AddScoped<ITokenStorage, SessionStorageTokenStorage>();

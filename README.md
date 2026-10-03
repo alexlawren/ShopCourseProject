@@ -124,10 +124,18 @@ Implemented:
   - Lifecycle controls (guided forward state progression `Created → Confirmed → Processing → Shipped → Completed`).
   - Admin cancellation (`POST /api/admin/orders/{id}/cancel`) with committed stock return, cancellation state protection, and retry support.
   - Real-time Admin updates via SignalR (`CatalogHub` stock/product updates, `OrderHub` `admins` group for order creation and state transitions).
+- Docker and Docker Compose orchestration (Change-set №9):
+  - Multi-stage Dockerfiles (`deploy/docker/Dockerfile.*`) with Alpine-based .NET 9 runtimes.
+  - 5-container topology (`postgres`, `identity-service`, `catalog-service`, `order-service`, `gateway`) connected in an isolated bridge network (`shop-network`).
+  - Single external origin via `Shop.Gateway` on port `8080:8080` (hosting Blazor WebAssembly static assets directly from `/app/wwwroot`, reverse proxying REST, static images, and SignalR WebSockets).
+  - Internal direct gRPC channel `order-service → catalog-service:8081` bypassing the gateway.
+  - Zero exposed internal host ports, preventing port collisions with local host services.
+  - Named persistent volumes `postgres-data` and `product-images`.
+  - Automated database initialization (`init-databases.sql`), EF Core migrations, and default administrator seeding on container startup.
+  - Complete environment template (`.env.example`) and comprehensive deployment guide (`docs/deployment/docker.md`).
 
 Planned / not implemented:
 
-- Docker Compose.
 - Final end-to-end validation.
 - Architecture and UML diagrams.
 - Coursework final report.

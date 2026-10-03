@@ -110,6 +110,30 @@ app.MapGrpcService<StockReservationGrpcService>();
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "CatalogService" }));
 
+// --------------- Apply EF Migrations ---------------
+using (var scope = app.Services.CreateScope())
+{
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+    const int maxRetries = 10;
+    for (var attempt = 1; attempt <= maxRetries; attempt++)
+    {
+        try
+        {
+            logger.LogInformation("Applying Catalog EF migrations (attempt {Attempt}/{MaxRetries})...", attempt, maxRetries);
+            await dbContext.Database.MigrateAsync();
+            logger.LogInformation("Catalog EF migrations applied successfully.");
+            break;
+        }
+        catch (Exception ex) when (attempt < maxRetries)
+        {
+            logger.LogWarning(ex, "Failed to apply Catalog EF migrations on attempt {Attempt}. Retrying in 2 seconds...", attempt);
+            await Task.Delay(2000);
+        }
+    }
+}
+
 app.Run();
 
 public partial class Program;
+

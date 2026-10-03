@@ -231,8 +231,14 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
     - Guided lifecycle transitions (`Created → Confirmed → Processing → Shipped → Completed`) via `PATCH /api/admin/orders/{id}/status`.
     - Admin Cancellation (`POST /api/admin/orders/{id}/cancel`): permitted for `Created`, `Confirmed`, and `Processing` orders; triggers inventory return via Catalog gRPC; disabled for `Shipped`, `Completed`, and `Cancelled`.
     - Real-time order sync via OrderHub `admins` group subscription.
+- **Containerization & Orchestration Architecture (Change-set №9)**:
+  - **Docker Compose Topology**: 5 services (`postgres`, `identity-service`, `catalog-service`, `order-service`, `gateway`) connected in an isolated bridge network (`shop-network`).
+  - **Single External Origin**: Only `gateway` exposes an external host port (`8080:8080`). All internal microservices and PostgreSQL do not publish host ports.
+  - **Embedded Static Web Hosting**: `Shop.Gateway` embeds Blazor WebAssembly static assets (`/app/wwwroot`), acting simultaneously as reverse proxy (YARP) and web host. Eliminates extra reverse proxies (Nginx) and cross-origin complexity for the SPA.
+  - **Direct Intra-Cluster gRPC**: `order-service` calls `catalog-service` gRPC on `http://catalog-service:8081` directly within the bridge network, bypassing the gateway.
+  - **State Persistence**: Named volumes `postgres-data` (database files) and `product-images` (uploaded catalog photos).
+  - **Automated Lifecycle & Migrations**: PostgreSQL initialization scripts (`init-databases.sql`) provision separate databases (`shop_identity`, `shop_catalog`, `shop_orders`). Services automatically execute EF Core migrations and admin user bootstrapping on container startup.
 - **Deferred to Future Stages**:
-  - Docker Compose.
   - Final E2E testing suite.
   - Architecture and UML diagrams.
   - Coursework final report.

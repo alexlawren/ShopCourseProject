@@ -1,0 +1,22 @@
+# Stage 1: Build & Publish
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+COPY Directory.Build.props ./
+COPY contracts/grpc/catalog_stock.proto contracts/grpc/
+COPY src/Services/Shop.CatalogService/Shop.CatalogService.csproj src/Services/Shop.CatalogService/
+
+RUN dotnet restore src/Services/Shop.CatalogService/Shop.CatalogService.csproj
+
+COPY src/Services/Shop.CatalogService/ src/Services/Shop.CatalogService/
+
+RUN dotnet publish src/Services/Shop.CatalogService/Shop.CatalogService.csproj \
+    -c Release \
+    -o /app/publish \
+    --no-restore
+
+# Stage 2: Runtime
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "Shop.CatalogService.dll"]

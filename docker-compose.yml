@@ -1,0 +1,106 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-shop}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Error: POSTGRES_PASSWORD environment variable is required in .env}
+      - POSTGRES_DB=postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./deploy/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shop} -d postgres"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+    networks:
+      - shop-network
+    restart: unless-stopped
+
+  identity-service:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.identity
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://0.0.0.0:8080
+      - ConnectionStrings__IdentityDb=Host=postgres;Port=5432;Database=shop_identity;Username=${POSTGRES_USER:-shop};Password=${POSTGRES_PASSWORD}
+      - Jwt__Key=${JWT_KEY:?Error: JWT_KEY environment variable is required in .env}
+      - BootstrapAdmin__Email=${BOOTSTRAP_ADMIN_EMAIL:-}
+      - BootstrapAdmin__Password=${BOOTSTRAP_ADMIN_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - shop-network
+    restart: unless-stopped
+
+  catalog-service:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.catalog
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__CatalogDb=Host=postgres;Port=5432;Database=shop_catalog;Username=${POSTGRES_USER:-shop};Password=${POSTGRES_PASSWORD}
+      - Jwt__Key=${JWT_KEY:?Error: JWT_KEY environment variable is required in .env}
+      - ProductImages__StoragePath=/data/product-images
+      - Kestrel__Endpoints__Rest__Url=http://0.0.0.0:8080
+      - Kestrel__Endpoints__Rest__Protocols=Http1
+      - Kestrel__Endpoints__Grpc__Url=http://0.0.0.0:8081
+      - Kestrel__Endpoints__Grpc__Protocols=Http2
+    volumes:
+      - product-images:/data/product-images
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - shop-network
+    restart: unless-stopped
+
+  order-service:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.order
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://0.0.0.0:8080
+      - ConnectionStrings__OrderDb=Host=postgres;Port=5432;Database=shop_orders;Username=${POSTGRES_USER:-shop};Password=${POSTGRES_PASSWORD}
+      - Jwt__Key=${JWT_KEY:?Error: JWT_KEY environment variable is required in .env}
+      - CatalogGrpc__Address=http://catalog-service:8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - shop-network
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.gateway
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://0.0.0.0:8080
+      - ReverseProxy__Clusters__identity-cluster__Destinations__identity-destination__Address=http://identity-service:8080/
+      - ReverseProxy__Clusters__catalog-cluster__Destinations__catalog-destination__Address=http://catalog-service:8080/
+      - ReverseProxy__Clusters__order-cluster__Destinations__order-destination__Address=http://order-service:8080/
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      identity-service:
+        condition: service_started
+      catalog-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+    networks:
+      - shop-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  product-images:
+
+networks:
+  shop-network:
+    driver: bridge
