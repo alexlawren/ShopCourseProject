@@ -1,0 +1,92 @@
+@page "/register"
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Регистрация - ShopCourseProject</PageTitle>
+
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5 col-lg-4">
+        <div class="card shadow-sm border-0 p-4">
+            <h3 class="card-title text-center fw-bold mb-4">Регистрация</h3>
+
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @_errorMessage
+                </div>
+            }
+
+            <EditForm Model="@_registerModel" OnValidSubmit="HandleRegister">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label for="regEmailInput" class="form-label">Email</label>
+                    <InputText id="regEmailInput" class="form-control" @bind-Value="_registerModel.Email" placeholder="name@example.com" />
+                    <ValidationMessage For="@(() => _registerModel.Email)" class="text-danger small" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="regPasswordInput" class="form-label">Пароль</label>
+                    <InputText id="regPasswordInput" type="password" class="form-control" @bind-Value="_registerModel.Password" placeholder="Минимум 6 символов" />
+                    <ValidationMessage For="@(() => _registerModel.Password)" class="text-danger small" />
+                </div>
+
+                <div class="mb-4">
+                    <label for="regConfirmPasswordInput" class="form-label">Подтверждение пароля</label>
+                    <InputText id="regConfirmPasswordInput" type="password" class="form-control" @bind-Value="_registerModel.ConfirmPassword" placeholder="Повторите пароль" />
+                    <ValidationMessage For="@(() => _registerModel.ConfirmPassword)" class="text-danger small" />
+                </div>
+
+                <button type="submit" class="btn btn-success w-100 py-2 fw-semibold" disabled="@_isLoading">
+                    @if (_isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <span>Регистрация...</span>
+                    }
+                    else
+                    {
+                        <span>Зарегистрироваться</span>
+                    }
+                </button>
+            </EditForm>
+
+            <div class="text-center mt-4 border-top pt-3">
+                <span class="text-muted small">Уже зарегистрированы? </span>
+                <a href="/login" class="small fw-semibold text-decoration-none">Войти в аккаунт</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly RegisterModel _registerModel = new();
+    private string? _errorMessage;
+    private bool _isLoading;
+
+    private async Task HandleRegister()
+    {
+        _errorMessage = null;
+        _isLoading = true;
+
+        try
+        {
+            var result = await AuthService.RegisterAsync(_registerModel);
+            if (result.Succeeded)
+            {
+                Navigation.NavigateTo("/catalog");
+            }
+            else
+            {
+                _errorMessage = result.ErrorMessage ?? "Ошибка при регистрации. Проверьте введённые данные.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Ошибка соединения с сервером: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

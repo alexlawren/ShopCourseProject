@@ -1,7 +1,50 @@
 @page "/"
 
-<PageTitle>ShopCourseProject</PageTitle>
+<PageTitle>Главная - ShopCourseProject</PageTitle>
 
-<h1>ShopCourseProject</h1>
+<div class="container py-4">
+    <div class="p-5 mb-4 bg-light rounded-3 shadow-sm">
+        <div class="container-fluid py-3">
+            <h1 class="display-5 fw-bold text-primary">Добро пожаловать в интернет-магазин</h1>
+            <p class="col-md-8 fs-5 text-muted mt-3">
+                ShopCourseProject — современное клиент-серверное приложение для обработки заказов. 
+                Просматривайте актуальный каталог товаров, фильтруйте по категориям и ценам с моментальным получением складских остатков в реальном времени.
+            </p>
+            <div class="mt-4">
+                <a href="/catalog" class="btn btn-primary btn-lg px-4 me-2">Перейти в каталог</a>
+                <AuthorizeView>
+                    <NotAuthorized>
+                        <a href="/login" class="btn btn-outline-secondary btn-lg px-4">Войти</a>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </div>
 
-<p>Course project skeleton</p>
+    <div class="row g-4 mt-2">
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm p-3">
+                <div class="card-body">
+                    <h5 class="card-title fw-bold text-dark">Широкий ассортимент</h5>
+                    <p class="card-text text-muted">Новейшая цифровая техника, ноутбуки и аксессуары с детальными характеристиками и фото.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm p-3">
+                <div class="card-body">
+                    <h5 class="card-title fw-bold text-dark">Real-time уведомления</h5>
+                    <p class="card-text text-muted">Остатки на складе и изменения ассортимента обновляются автоматически через WebSocket без перезагрузки страниц.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm p-3">
+                <div class="card-body">
+                    <h5 class="card-title fw-bold text-dark">Безопасность и надёжность</h5>
+                    <p class="card-text text-muted">Единая точка входа YARP Gateway, JWT-аутентификация и изолированные микросервисы.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -177,7 +177,43 @@ Each service owns its own PostgreSQL database. Direct cross-service table access
 - **WebSocket Upgrade Support**: Seamless WebSocket proxying for SignalR hubs with query string token preservation (`access_token`).
 - **Internal Service Isolation**: CatalogService internal gRPC endpoint (port 5059) is **strictly not exposed** through the Gateway. OrderService connects to CatalogService gRPC directly.
 - **Gateway Health**: Dedicated `/health` probe endpoint returning `200 OK`.
-- **Not yet implemented**: Blazor WebAssembly frontend, Docker/Docker Compose.
+- **CORS Configuration**: Restricts access to specific `Shop.Web` development origins (`http://localhost:5287`, `https://localhost:7177`) with explicit methods and headers, without wildcard credentials.
+
+### Shop.Web (Foundation Implemented — Change-set №8A)
+
+- **Technology**: Blazor WebAssembly (.NET 9.0) client-side Single Page Application.
+- **Gateway-Only Networking**: Browser connects strictly and exclusively to `Shop.Gateway` (`http://localhost:5210` in Development) configured via `Gateway:BaseUrl`. Direct browser calls to downstream microservices (5078, 5058, 5059, 5141) are strictly prohibited.
+- **Authentication & Token Storage**:
+  - `ITokenStorage` backed by browser `sessionStorage` via minimal JS interop. Tokens persist across page reloads (F5) within a tab and are cleared on tab close.
+  - `CustomAuthenticationStateProvider` decodes Base64Url JWT claims (`sub`, `email`, `role`) for UI rendering only. Backend microservices remain the sole authoritative security validators.
+  - No JWT signing keys or database credentials exist on the frontend.
+- **Refresh Token Flow**:
+  - `AuthHeaderHandler` intercepts 401 responses on protected endpoints.
+  - Concurrency protected via `SemaphoreSlim(1, 1)` in `AuthService`.
+  - On refresh success: tokens updated, UI notified, and failed GET request retried once.
+  - On failure: tokens purged, UI transitions to anonymous.
+- **Public Product Catalog**:
+  - Paginated browsing with search, category filtering, price bounds, in-stock filter, and sorting.
+  - Product details view (`/products/{id}`) with robust 404 Not Found handling.
+  - Product images served exclusively through Gateway URL builder (`http://localhost:5210/product-images/...`).
+- **Catalog Realtime Integration**:
+  - SignalR client connects to Gateway `/hubs/catalog` with automatic reconnection.
+  - `StockChanged` events update visible product stock in-place.
+  - `ProductChanged` events trigger catalog refetch, immediately removing soft-deleted items.
+  - Subscriptions disposed cleanly on component navigation.
+- **Role-Aware Navigation**:
+  - `NavMenu.razor` dynamically renders login/register vs authenticated user email, role badge (Customer/Admin), and logout.
+- **Deferred to Change-set №8B**:
+  - Shopping Cart UI.
+  - Checkout UI.
+  - Customer Orders UI.
+  - Simulated Payment / Cancellation UI.
+  - Admin Catalog Management UI.
+  - Admin Orders UI.
+  - SignalR OrderHub Realtime Integration.
+- **Deferred to Future Stages**:
+  - Docker Compose.
+  - Final E2E testing suite.
 
 ## Technologies Intentionally Excluded in v1
 

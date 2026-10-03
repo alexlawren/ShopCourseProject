@@ -94,10 +94,27 @@ Implemented:
 - Order, Cart, and Admin Order REST routing (`/api/cart*`, `/api/orders*`, `/api/admin/orders*`).
 - SignalR WebSocket proxying (`/hubs/orders*`, `/hubs/catalog*`) with access token preservation.
 - Gateway health endpoint (`GET /health`).
+- Blazor WebAssembly UI foundation (`Shop.Web`).
+- Gateway API client (Gateway-only networking via `http://localhost:5210`).
+- User registration, login, and logout UI.
+- JWT authentication state provider (presentation-only claim parsing).
+- Refresh-token flow with concurrency lock and retry.
+- Session storage token persistence (`sessionStorage` via JS interop).
+- Public product catalog UI with search, category filtering, min/max price, in-stock filter, and sorting.
+- Server-side catalog pagination.
+- Product details page with image display through Gateway and 404 handling.
+- Catalog SignalR realtime updates (`StockChanged` in-place update, `ProductChanged` auto-refetch).
+- Role-aware navigation bar (Customer/Admin role indicators).
 
 Planned / not implemented:
 
-- Blazor WebAssembly.
+- Cart UI.
+- Checkout UI.
+- Customer Orders UI.
+- Payment simulation & order cancellation UI.
+- Admin Catalog management UI.
+- Admin Orders management UI.
+- OrderHub SignalR realtime integration.
 - Docker Compose.
 - Final end-to-end validation.
 

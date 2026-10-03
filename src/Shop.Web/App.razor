@@ -1,12 +1,26 @@
-﻿<Router AppAssembly="@typeof(App).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-    <NotFound>
-        <PageTitle>Not found</PageTitle>
-        <LayoutView Layout="@typeof(MainLayout)">
-            <p role="alert">Sorry, there's nothing at this address.</p>
-        </LayoutView>
-    </NotFound>
-</Router>
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    <div class="container my-5 text-center">
+                        <h2>Доступ ограничен</h2>
+                        <p class="text-muted">Пожалуйста, войдите в систему для доступа к этой странице.</p>
+                        <a href="/login" class="btn btn-primary">Войти</a>
+                    </div>
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Страница не найдена</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <div class="container my-5 text-center">
+                    <h2>Страница не найдена</h2>
+                    <p class="text-muted">Запрошенная страница не существует.</p>
+                    <a href="/" class="btn btn-outline-primary">На главную</a>
+                </div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

@@ -1,0 +1,86 @@
+@page "/login"
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Вход - ShopCourseProject</PageTitle>
+
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5 col-lg-4">
+        <div class="card shadow-sm border-0 p-4">
+            <h3 class="card-title text-center fw-bold mb-4">Вход в систему</h3>
+
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @_errorMessage
+                </div>
+            }
+
+            <EditForm Model="@_loginModel" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label for="emailInput" class="form-label">Email</label>
+                    <InputText id="emailInput" class="form-control" @bind-Value="_loginModel.Email" placeholder="name@example.com" />
+                    <ValidationMessage For="@(() => _loginModel.Email)" class="text-danger small" />
+                </div>
+
+                <div class="mb-4">
+                    <label for="passwordInput" class="form-label">Пароль</label>
+                    <InputText id="passwordInput" type="password" class="form-control" @bind-Value="_loginModel.Password" placeholder="••••••••" />
+                    <ValidationMessage For="@(() => _loginModel.Password)" class="text-danger small" />
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold" disabled="@_isLoading">
+                    @if (_isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <span>Выполняется вход...</span>
+                    }
+                    else
+                    {
+                        <span>Войти</span>
+                    }
+                </button>
+            </EditForm>
+
+            <div class="text-center mt-4 border-top pt-3">
+                <span class="text-muted small">Ещё нет аккаунта? </span>
+                <a href="/register" class="small fw-semibold text-decoration-none">Зарегистрироваться</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly LoginModel _loginModel = new();
+    private string? _errorMessage;
+    private bool _isLoading;
+
+    private async Task HandleLogin()
+    {
+        _errorMessage = null;
+        _isLoading = true;
+
+        try
+        {
+            var result = await AuthService.LoginAsync(_loginModel);
+            if (result.Succeeded)
+            {
+                Navigation.NavigateTo("/catalog");
+            }
+            else
+            {
+                _errorMessage = result.ErrorMessage ?? "Неверный логин или пароль.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Ошибка соединения с шлюзом: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}
