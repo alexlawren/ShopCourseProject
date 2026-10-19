@@ -54,29 +54,14 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
 
     public async Task<IReadOnlyList<AdminCategoryDto>> GetCategoriesAsync(CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var response = await _httpClient.GetAsync("/api/catalog/admin/categories", cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                return await response.Content.ReadFromJsonAsync<IReadOnlyList<AdminCategoryDto>>(cancellationToken: cancellationToken)
-                       ?? Array.Empty<AdminCategoryDto>();
-            }
-
-            return Array.Empty<AdminCategoryDto>();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[AdminCatalogApiClient] GetCategoriesAsync error: {ex.Message}");
-            return Array.Empty<AdminCategoryDto>();
-        }
+        return await ApiReadHelper.GetAsync<IReadOnlyList<AdminCategoryDto>>(_httpClient, $"/api/catalog/admin/categories", cancellationToken) ?? [];
     }
 
     public async Task<AdminOperationResult<AdminCategoryDto>> CreateCategoryAsync(CreateCategoryRequest request, CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/catalog/categories", request, cancellationToken);
+            using var response = await _httpClient.PostAsJsonAsync("/api/catalog/categories", request, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 var category = await response.Content.ReadFromJsonAsync<AdminCategoryDto>(cancellationToken: cancellationToken);
@@ -86,9 +71,9 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
             var (error, code) = await ParseProblemDetailsAsync(response, cancellationToken);
             return AdminOperationResult<AdminCategoryDto>.Failure(error, code);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return AdminOperationResult<AdminCategoryDto>.Failure($"Ошибка при создании категории: {ex.Message}");
+            return AdminOperationResult<AdminCategoryDto>.Failure("Ошибка при создании категории. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -96,7 +81,7 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
     {
         try
         {
-            var response = await _httpClient.PutAsJsonAsync($"/api/catalog/categories/{id}", request, cancellationToken);
+            using var response = await _httpClient.PutAsJsonAsync($"/api/catalog/categories/{id}", request, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 return AdminOperationResult.Success();
@@ -105,9 +90,9 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
             var (error, code) = await ParseProblemDetailsAsync(response, cancellationToken);
             return AdminOperationResult.Failure(error, code);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return AdminOperationResult.Failure($"Ошибка при обновлении категории: {ex.Message}");
+            return AdminOperationResult.Failure("Ошибка при обновлении категории. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -115,7 +100,7 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
     {
         try
         {
-            var response = await _httpClient.DeleteAsync($"/api/catalog/categories/{id}", cancellationToken);
+            using var response = await _httpClient.DeleteAsync($"/api/catalog/categories/{id}", cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 return AdminOperationResult.Success();
@@ -124,9 +109,9 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
             var (error, code) = await ParseProblemDetailsAsync(response, cancellationToken);
             return AdminOperationResult.Failure(error, code);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return AdminOperationResult.Failure($"Ошибка при деактивации категории: {ex.Message}");
+            return AdminOperationResult.Failure("Ошибка при деактивации категории. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -139,55 +124,41 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
         string? sort = null,
         CancellationToken cancellationToken = default)
     {
-        try
+        var queryParams = new List<string>
         {
-            var queryParams = new List<string>
-            {
-                $"page={page}",
-                $"pageSize={pageSize}"
-            };
+            $"page={page}",
+            $"pageSize={pageSize}"
+        };
 
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                queryParams.Add($"search={Uri.EscapeDataString(search.Trim())}");
-            }
-
-            if (categoryId.HasValue)
-            {
-                queryParams.Add($"categoryId={categoryId.Value}");
-            }
-
-            if (isActive.HasValue)
-            {
-                queryParams.Add($"isActive={isActive.Value.ToString().ToLowerInvariant()}");
-            }
-
-            if (!string.IsNullOrWhiteSpace(sort))
-            {
-                queryParams.Add($"sort={Uri.EscapeDataString(sort.Trim())}");
-            }
-
-            var url = $"/api/catalog/admin/products?{string.Join("&", queryParams)}";
-            var response = await _httpClient.GetAsync(url, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                return await response.Content.ReadFromJsonAsync<PagedResult<AdminProductDto>>(cancellationToken: cancellationToken);
-            }
-
-            return null;
-        }
-        catch (Exception ex)
+        if (!string.IsNullOrWhiteSpace(search))
         {
-            Console.WriteLine($"[AdminCatalogApiClient] GetProductsAsync error: {ex.Message}");
-            return null;
+            queryParams.Add($"search={Uri.EscapeDataString(search.Trim())}");
         }
+
+        if (categoryId.HasValue)
+        {
+            queryParams.Add($"categoryId={categoryId.Value}");
+        }
+
+        if (isActive.HasValue)
+        {
+            queryParams.Add($"isActive={isActive.Value.ToString().ToLowerInvariant()}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(sort))
+        {
+            queryParams.Add($"sort={Uri.EscapeDataString(sort.Trim())}");
+        }
+
+        var url = $"/api/catalog/admin/products?{string.Join("&", queryParams)}";
+        return await ApiReadHelper.GetAsync<PagedResult<AdminProductDto>>(_httpClient, url, cancellationToken);
     }
 
     public async Task<AdminOperationResult<AdminProductDto>> CreateProductAsync(CreateProductRequest request, CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/catalog/products", request, cancellationToken);
+            using var response = await _httpClient.PostAsJsonAsync("/api/catalog/products", request, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 var product = await response.Content.ReadFromJsonAsync<AdminProductDto>(cancellationToken: cancellationToken);
@@ -197,9 +168,9 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
             var (error, code) = await ParseProblemDetailsAsync(response, cancellationToken);
             return AdminOperationResult<AdminProductDto>.Failure(error, code);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return AdminOperationResult<AdminProductDto>.Failure($"Ошибка при создании товара: {ex.Message}");
+            return AdminOperationResult<AdminProductDto>.Failure("Ошибка при создании товара. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -207,7 +178,7 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
     {
         try
         {
-            var response = await _httpClient.PutAsJsonAsync($"/api/catalog/products/{id}", request, cancellationToken);
+            using var response = await _httpClient.PutAsJsonAsync($"/api/catalog/products/{id}", request, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 return AdminOperationResult.Success();
@@ -216,9 +187,9 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
             var (error, code) = await ParseProblemDetailsAsync(response, cancellationToken);
             return AdminOperationResult.Failure(error, code);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return AdminOperationResult.Failure($"Ошибка при обновлении товара: {ex.Message}");
+            return AdminOperationResult.Failure("Ошибка при обновлении товара. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -226,7 +197,7 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
     {
         try
         {
-            var response = await _httpClient.DeleteAsync($"/api/catalog/products/{id}", cancellationToken);
+            using var response = await _httpClient.DeleteAsync($"/api/catalog/products/{id}", cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 return AdminOperationResult.Success();
@@ -235,9 +206,9 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
             var (error, code) = await ParseProblemDetailsAsync(response, cancellationToken);
             return AdminOperationResult.Failure(error, code);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return AdminOperationResult.Failure($"Ошибка при деактивации товара: {ex.Message}");
+            return AdminOperationResult.Failure("Ошибка при деактивации товара. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -245,7 +216,7 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
     {
         try
         {
-            var response = await _httpClient.PatchAsJsonAsync($"/api/catalog/products/{id}/stock", new UpdateStockRequest
+            using var response = await _httpClient.PatchAsJsonAsync($"/api/catalog/products/{id}/stock", new UpdateStockRequest
             {
                 Quantity = quantity
             }, cancellationToken);
@@ -258,9 +229,9 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
             var (error, code) = await ParseProblemDetailsAsync(response, cancellationToken);
             return AdminOperationResult.Failure(error, code);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return AdminOperationResult.Failure($"Ошибка при обновлении остатка: {ex.Message}");
+            return AdminOperationResult.Failure("Ошибка при обновлении остатка. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -278,7 +249,7 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
             streamContent.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
             content.Add(streamContent, "file", fileName);
 
-            var response = await _httpClient.PostAsync($"/api/catalog/products/{id}/image", content, cancellationToken);
+            using var response = await _httpClient.PostAsync($"/api/catalog/products/{id}/image", content, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<ProductImageDto>(cancellationToken: cancellationToken);
@@ -288,9 +259,9 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
             var (error, code) = await ParseProblemDetailsAsync(response, cancellationToken);
             return AdminOperationResult<string>.Failure(error, code);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return AdminOperationResult<string>.Failure($"Ошибка при загрузке изображения: {ex.Message}");
+            return AdminOperationResult<string>.Failure("Ошибка при загрузке изображения. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -298,7 +269,7 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
     {
         try
         {
-            var response = await _httpClient.DeleteAsync($"/api/catalog/products/{id}/image", cancellationToken);
+            using var response = await _httpClient.DeleteAsync($"/api/catalog/products/{id}/image", cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 return AdminOperationResult.Success();
@@ -307,9 +278,9 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
             var (error, code) = await ParseProblemDetailsAsync(response, cancellationToken);
             return AdminOperationResult.Failure(error, code);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return AdminOperationResult.Failure($"Ошибка при удалении изображения: {ex.Message}");
+            return AdminOperationResult.Failure("Ошибка при удалении изображения. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -317,28 +288,6 @@ public class AdminCatalogApiClient : IAdminCatalogApiClient
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsModel>(cancellationToken: cancellationToken);
-            if (problem != null)
-            {
-                var message = problem.GetDisplayMessage();
-                var code = problem.GetErrorCode();
-                return (message, code);
-            }
-        }
-        catch
-        {
-            // fallback
-        }
-
-        return response.StatusCode switch
-        {
-            System.Net.HttpStatusCode.Unauthorized => ("Требуется авторизация администратора.", "UNAUTHORIZED"),
-            System.Net.HttpStatusCode.Forbidden => ("Доступ запрещён. Требуются права администратора.", "FORBIDDEN"),
-            System.Net.HttpStatusCode.NotFound => ("Запрашиваемый ресурс не найден.", "NOT_FOUND"),
-            System.Net.HttpStatusCode.Conflict => ("Конфликт при выполнении операции.", "CONFLICT"),
-            _ => ($"Ошибка сервера ({(int)response.StatusCode}).", response.StatusCode.ToString())
-        };
+        return await ApiErrorReader.ReadAsync(response, cancellationToken);
     }
 }

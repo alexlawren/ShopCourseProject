@@ -8,7 +8,7 @@ public class ProblemDetailsModelTests
     [Theory]
     [InlineData("EMPTY_CART", "Корзина пуста. Добавьте товары перед оформлением заказа.")]
     [InlineData("CART_CHANGED", "Содержимое корзины изменилось во время оформления. Пожалуйста, проверьте корзину.")]
-    [InlineData("OUT_OF_STOCK", "Недостаточно товара на складе для оформления заказа.")]
+    [InlineData("OUT_OF_STOCK", "Недостаточно товара на складе.")]
     [InlineData("PRODUCT_NOT_FOUND", "Один или несколько товаров не найдены.")]
     [InlineData("PRODUCT_INACTIVE", "Один из товаров в корзине снят с продажи.")]
     [InlineData("CATEGORY_INACTIVE", "Категория одного из товаров в корзине неактивна.")]
@@ -44,14 +44,14 @@ public class ProblemDetailsModelTests
 
         Assert.NotNull(model);
         Assert.Equal("OUT_OF_STOCK", model.GetErrorCode());
-        Assert.Equal("Недостаточно товара на складе для оформления заказа.", model.GetDisplayMessage());
+        Assert.Equal("Недостаточно товара на складе.", model.GetDisplayMessage());
     }
 
     [Fact]
-    public void GetDisplayMessage_NoCode_FallsBackToDetailOrErrorsOrTitle()
+    public void GetDisplayMessage_NoCode_DoesNotExposeRawServerText()
     {
         var modelWithDetail = new ProblemDetailsModel { Detail = "Custom detail" };
-        Assert.Equal("Custom detail", modelWithDetail.GetDisplayMessage());
+        Assert.Equal("Произошла ошибка при выполнении запроса.", modelWithDetail.GetDisplayMessage());
 
         var modelWithErrors = new ProblemDetailsModel
         {
@@ -60,9 +60,9 @@ public class ProblemDetailsModelTests
                 { "Quantity", ["Quantity must be between 1 and 1000."] }
             }
         };
-        Assert.Equal("Quantity must be between 1 and 1000.", modelWithErrors.GetDisplayMessage());
+        Assert.Equal("Проверьте количество товара: требуется целое число в допустимом диапазоне.", modelWithErrors.GetDisplayMessage());
 
         var modelWithTitle = new ProblemDetailsModel { Title = "Bad Request" };
-        Assert.Equal("Bad Request", modelWithTitle.GetDisplayMessage());
+        Assert.Equal("Произошла ошибка при выполнении запроса.", modelWithTitle.GetDisplayMessage());
     }
 }

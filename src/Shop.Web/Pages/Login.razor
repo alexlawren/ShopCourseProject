@@ -4,10 +4,10 @@
 
 <PageTitle>Вход - ShopCourseProject</PageTitle>
 
-<div class="row justify-content-center mt-5">
-    <div class="col-md-5 col-lg-4">
-        <div class="card shadow-sm border-0 p-4">
-            <h3 class="card-title text-center fw-bold mb-4">Вход в систему</h3>
+<div class="auth-page">
+    <div class="auth-shell">
+        <div class="card shadow-sm border-0 auth-card">
+            <h1 class="h3 card-title text-center fw-bold mb-4">Вход в систему</h1>
 
             @if (!string.IsNullOrWhiteSpace(_errorMessage))
             {
@@ -20,14 +20,14 @@
                 <DataAnnotationsValidator />
 
                 <div class="mb-3">
-                    <label for="emailInput" class="form-label">Email</label>
-                    <InputText id="emailInput" class="form-control" @bind-Value="_loginModel.Email" placeholder="name@example.com" />
+                    <label for="emailInput" class="form-label">Электронная почта</label>
+                    <InputText id="emailInput" type="email" autocomplete="email" class="form-control" @bind-Value="_loginModel.Email" placeholder="name@example.com" />
                     <ValidationMessage For="@(() => _loginModel.Email)" class="text-danger small" />
                 </div>
 
                 <div class="mb-4">
                     <label for="passwordInput" class="form-label">Пароль</label>
-                    <InputText id="passwordInput" type="password" class="form-control" @bind-Value="_loginModel.Password" placeholder="••••••••" />
+                    <InputText id="passwordInput" type="password" autocomplete="current-password" class="form-control" @bind-Value="_loginModel.Password" placeholder="••••••••" />
                     <ValidationMessage For="@(() => _loginModel.Password)" class="text-danger small" />
                 </div>
 
@@ -59,6 +59,7 @@
 
     private async Task HandleLogin()
     {
+        if (_isLoading) return;
         _errorMessage = null;
         _isLoading = true;
 
@@ -74,9 +75,9 @@
                 _errorMessage = result.ErrorMessage ?? "Неверный логин или пароль.";
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _errorMessage = $"Ошибка соединения с шлюзом: {ex.Message}";
+            _errorMessage = "Ошибка соединения с шлюзом. Повторите попытку.";
         }
         finally
         {

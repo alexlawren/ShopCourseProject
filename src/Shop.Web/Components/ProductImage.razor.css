@@ -1,0 +1,3 @@
+
+.product-image { width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; }
+.image-placeholder { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-height: 2rem; color: #7b879a; background: #f1f4f8; border: 1px dashed #d9e0e9; border-radius: .6rem; font-size: .85rem; }

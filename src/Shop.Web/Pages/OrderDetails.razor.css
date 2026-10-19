@@ -1,0 +1,7 @@
+
+.order-heading { background: #fff; }
+.order-details-page .list-group-item { padding-top: 1rem; padding-bottom: 1rem; }
+.order-details-page .list-group-item .small { font-size: .95rem; }
+.order-details-page .card-header .small { font-size: .95rem; }
+.timeline > .d-flex { flex-wrap: wrap; gap: .5rem; padding-top: .85rem !important; padding-bottom: .85rem !important; }
+.timeline .small { font-size: .95rem; }

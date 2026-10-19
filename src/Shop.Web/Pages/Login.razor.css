@@ -1,0 +1,7 @@
+.auth-page { width: 100%; max-width: 480px; min-width: 0; margin: 2rem auto; }
+.auth-shell { width: 100%; min-width: 0; }
+.auth-card { padding: 2rem; border-radius: .85rem; }
+@media (max-width: 575.98px) {
+    .auth-page { margin: .75rem auto; }
+    .auth-card { padding: 1.5rem; }
+}

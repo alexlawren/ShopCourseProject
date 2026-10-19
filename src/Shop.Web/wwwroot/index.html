@@ -1,15 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Shop.Web</title>
+    <title>ShopCourseProject</title>
     <base href="/" />
     <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/app.css?v=053f69e1d1ed" />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <link href="Shop.Web.styles.css" rel="stylesheet" />
+    <link href="Shop.Web.styles.css?v=e69384bed9ac" rel="stylesheet" />
 </head>
 
 <body>
@@ -22,10 +22,11 @@
     </div>
 
     <div id="blazor-error-ui">
-        An unhandled error has occurred.
-        <a href="." class="reload">Reload</a>
-        <span class="dismiss">🗙</span>
+        Произошла ошибка приложения. Обновите страницу.
+        <a href="." class="reload">Обновить</a>
+        <button type="button" class="dismiss btn-close" aria-label="Закрыть"></button>
     </div>
+    <script src="js/modal-focus.js"></script>
     <script src="_framework/blazor.webassembly.js"></script>
 </body>
 

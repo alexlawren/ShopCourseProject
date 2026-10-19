@@ -13,10 +13,10 @@ public static class AdminOrderUiHelper
 
     public static string GetNextStatusActionName(string? currentStatus) => currentStatus?.ToLowerInvariant() switch
     {
-        "created" => "Подтвердить заказ (Confirmed)",
-        "confirmed" => "Перевести в обработку (Processing)",
-        "processing" => "Отправить заказ (Shipped)",
-        "shipped" => "Завершить заказ (Completed)",
+        "created" => "Подтвердить заказ",
+        "confirmed" => "Перевести в обработку",
+        "processing" => "Отправить заказ",
+        "shipped" => "Завершить заказ",
         _ => string.Empty
     };
 

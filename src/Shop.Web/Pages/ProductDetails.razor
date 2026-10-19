@@ -23,6 +23,12 @@
             <p class="text-muted mt-2">Загрузка информации о товаре...</p>
         </div>
     }
+    else if (_loadError != null)
+    {
+        <div class="alert alert-danger" role="alert">@_loadError
+            <button type="button" class="btn btn-outline-danger btn-sm ms-2" @onclick="LoadProductAsync">Повторить</button>
+        </div>
+    }
     else if (_product == null)
     {
         <div class="card border-0 shadow-sm p-5 text-center bg-light">
@@ -35,13 +41,13 @@
     }
     else
     {
-        <div class="row g-5">
+        <div class="row g-4 g-md-5">
             <!-- Изображение -->
             <div class="col-md-6">
                 <div class="card border-0 shadow-sm p-4 bg-light d-flex align-items-center justify-content-center" style="min-height: 380px;">
                     @if (!string.IsNullOrWhiteSpace(_product.ImagePath))
                     {
-                        <img src="@CatalogClient.GetImageUrl(_product.ImagePath)" class="img-fluid rounded shadow-sm" alt="@_product.Name" style="max-height: 360px;" />
+                        <ProductImage Src="@CatalogClient.GetImageUrl(_product.ImagePath)" Class="img-fluid rounded shadow-sm" Alt="@_product.Name" Style="max-height: 360px;"  />
                     }
                     else
                     {
@@ -65,10 +71,10 @@
                     </span>
                 }
 
-                <h2 class="fw-bold mb-3">@_product.Name</h2>
+                <h1 class="h3 fw-bold mb-3">@_product.Name</h1>
 
                 <div class="mb-4">
-                    <span class="display-6 fw-bold text-primary">@_product.Price.ToString("F2") ₽</span>
+                    <span class="display-6 fw-bold text-primary">@MoneyDisplay.Format(_product.Price)</span>
                 </div>
 
                 <div class="mb-4">
@@ -92,7 +98,7 @@
                         <Authorized>
                             @if (_product.StockQuantity > 0)
                             {
-                                <div class="row g-2 align-items-center">
+                                <div class="row g-2 align-items-center product-purchase-actions">
                                     <div class="col-auto">
                                         <label for="productQty" class="form-label small fw-semibold mb-0">Количество:</label>
                                     </div>
@@ -104,7 +110,7 @@
                                         </div>
                                     </div>
                                     <div class="col">
-                                        <button class="btn btn-primary btn-sm px-4 w-100" @onclick="HandleAddToCart" disabled="@_isAddingToCart">
+                                        <button type="button" class="btn btn-primary btn-sm px-4 w-100" @onclick="HandleAddToCart" disabled="@_isAddingToCart">
                                             @(_isAdded ? "✓ В корзине" : "В корзину")
                                         </button>
                                     </div>
@@ -118,7 +124,7 @@
                             }
                         </Authorized>
                         <NotAuthorized>
-                            <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
                                 <span class="small text-muted">Хотите заказать этот товар?</span>
                                 <a href="/login" class="btn btn-outline-primary btn-sm">Войдите, чтобы добавить в корзину</a>
                             </div>
@@ -152,6 +158,7 @@
     [Parameter]
     public Guid Id { get; set; }
 
+    private string? _loadError;
     private ProductDetailDto? _product;
     private bool _isLoading = true;
     private int _quantity = 1;
@@ -165,8 +172,6 @@
         RealtimeService.OnStockChanged += HandleStockChanged;
         RealtimeService.OnProductChanged += HandleProductChanged;
         await RealtimeService.StartAsync();
-
-        await LoadProductAsync();
     }
 
     protected override async Task OnParametersSetAsync()
@@ -179,8 +184,10 @@
         _isLoading = true;
         StateHasChanged();
 
-        _product = await CatalogClient.GetProductByIdAsync(Id);
-        _isLoading = false;
+        _loadError = null;
+        try { _product = await CatalogClient.GetProductByIdAsync(Id); }
+        catch (Exception) { _loadError = "Не удалось загрузить товар. Повторите попытку."; }
+        finally { _isLoading = false; }
         StateHasChanged();
     }
 
@@ -225,7 +232,7 @@
 
     private async Task HandleAddToCart()
     {
-        if (_product == null)
+        if (_product == null || _isAddingToCart)
             return;
 
         if (_quantity < 1 || _quantity > 1000)

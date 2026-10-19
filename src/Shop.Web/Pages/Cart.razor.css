@@ -1,0 +1,31 @@
+
+.cart-product-image { display: flex; align-items: center; justify-content: center; width: 72px; height: 72px; padding: .35rem; background: #f7f9fc; border-radius: .6rem; }
+.cart-quantity { width: 140px; flex-wrap: nowrap; }
+.cart-summary { background: #fff; }
+.cart-summary .money { font-size: 1.5rem !important; white-space: normal; overflow-wrap: anywhere; }
+.cart-items td:nth-child(2) { min-width: 11rem; max-width: 24rem; overflow-wrap: anywhere; }
+.cart-items td:nth-child(2) .badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 1599.98px) {
+    .cart-items-wrapper { overflow: visible; }
+    .cart-items { display: block; min-width: 0; width: 100%; }
+    .cart-items thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); }
+    .cart-items tbody { display: block; width: 100%; }
+    .cart-items tr { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: .75rem 1rem; padding: 1.25rem; border-bottom: 1px solid #e3e8ef; }
+    .cart-items tr:last-child { border-bottom: 0; }
+    .cart-items td { min-width: 0; max-width: none; padding: 0; border: 0; background: transparent; }
+    .cart-items td:nth-child(1) { grid-row: 1 / span 2; grid-column: 1; }
+    .cart-items td:nth-child(2) { grid-row: 1; grid-column: 2; min-width: 0; }
+    .cart-items td:nth-child(3) { grid-row: 2; grid-column: 2; }
+    .cart-items td:nth-child(4) { grid-row: 3; grid-column: 1 / span 2; }
+    .cart-items td:nth-child(5) { grid-row: 3; grid-column: 3; text-align: right; align-self: center; }
+    .cart-items td:nth-child(6) { grid-row: 1; grid-column: 3; }
+    .cart-items td:nth-child(3)::before { content: "Цена: "; color: #667085; }
+    .cart-items td:nth-child(5)::before { content: "Сумма: "; color: #667085; font-size: .875rem; display: block; }
+    .cart-items td:nth-child(3) .text-nowrap, .cart-items td:nth-child(5) .text-nowrap { white-space: normal !important; overflow-wrap: anywhere; }
+}
+@media (max-width: 575.98px) {
+    .cart-items tr { padding: 1rem; grid-template-columns: 64px minmax(0, 1fr) 40px; gap: .75rem; }
+    .cart-product-image { width: 64px; height: 64px; }
+    .cart-items td:nth-child(5) { grid-column: 1 / -1; grid-row: 4; text-align: left; }
+    .cart-items td:nth-child(5)::before { display: inline; }
+}

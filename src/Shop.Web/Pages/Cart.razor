@@ -9,27 +9,27 @@
 
 <PageTitle>Корзина - ShopCourseProject</PageTitle>
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="fw-bold mb-0">Корзина покупателя</h2>
+<div class="container py-4 cart-page">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
+        <h1 class="h3 fw-bold mb-0">Корзина покупателя</h1>
         <a href="/catalog" class="btn btn-outline-secondary btn-sm">← Продолжить покупки</a>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(_errorMessage))
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
                 <div>
                     <strong>Ошибка:</strong> @_errorMessage
                 </div>
                 @if (_canRetryCheckout)
                 {
-                    <button class="btn btn-danger btn-sm ms-3" @onclick="HandleCheckout" disabled="@_isCheckingOut">
+                    <button type="button" class="btn btn-danger btn-sm ms-3" @onclick="HandleCheckout" disabled="@(_isCheckingOut || _isUpdatingCart)">
                         Повторить попытку
                     </button>
                 }
             </div>
-            <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
+            <button type="button" aria-label="Закрыть" class="btn-close" @onclick="() => _errorMessage = null"></button>
         </div>
     }
 
@@ -37,7 +37,7 @@
     {
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             @_successMessage
-            <button type="button" class="btn-close" @onclick="() => _successMessage = null"></button>
+            <button type="button" aria-label="Закрыть" class="btn-close" @onclick="() => _successMessage = null"></button>
         </div>
     }
 
@@ -49,6 +49,10 @@
             </div>
             <p class="text-muted mt-2">Загрузка корзины...</p>
         </div>
+    }
+    else if (_loadFailed)
+    {
+        <button type="button" class="btn btn-outline-primary" @onclick="() => LoadCartAsync()">Повторить загрузку</button>
     }
     else if (_items.Count == 0)
     {
@@ -72,8 +76,8 @@
             <!-- Список товаров -->
             <div class="col-lg-8">
                 <div class="card border-0 shadow-sm overflow-hidden mb-3">
-                    <div class="table-responsive">
-                        <table class="table align-middle mb-0">
+                    <div class="table-responsive cart-items-wrapper" tabindex="0" role="region" aria-label="Товары корзины">
+                        <table class="table align-middle mb-0 cart-items">
                             <thead class="table-light">
                                 <tr>
                                     <th scope="col" style="width: 80px;">Фото</th>
@@ -89,10 +93,10 @@
                                 {
                                     <tr @key="item.ProductId">
                                         <td>
-                                            <div class="bg-light rounded d-flex align-items-center justify-content-center p-1" style="width: 60px; height: 60px;">
+                                            <div class="cart-product-image">
                                                 @if (!string.IsNullOrWhiteSpace(item.ImagePath))
                                                 {
-                                                    <img src="@CatalogClient.GetImageUrl(item.ImagePath)" class="img-fluid mh-100 rounded" alt="@item.ProductName" />
+                                                    <ProductImage Src="@CatalogClient.GetImageUrl(item.ImagePath)" Class="img-fluid mh-100 rounded" Alt="@item.ProductName"  />
                                                 }
                                                 else
                                                 {
@@ -119,7 +123,7 @@
                                         <td>
                                             @if (item.UnitPrice.HasValue)
                                             {
-                                                <span class="text-nowrap">@item.UnitPrice.Value.ToString("F2") ₽</span>
+                                                <span class="text-nowrap">@MoneyDisplay.Format(item.UnitPrice.Value)</span>
                                             }
                                             else
                                             {
@@ -127,16 +131,16 @@
                                             }
                                         </td>
                                         <td>
-                                            <div class="input-group input-group-sm" style="max-width: 120px;">
-                                                <button class="btn btn-outline-secondary" type="button" @onclick="() => UpdateQuantity(item.ProductId, item.Quantity - 1)" disabled="@(item.Quantity <= 1 || _isUpdatingCart)">-</button>
-                                                <input type="number" min="1" max="1000" class="form-control text-center px-1" value="@item.Quantity" @onchange="(e) => HandleQuantityInput(item.ProductId, e)" disabled="@_isUpdatingCart" />
-                                                <button class="btn btn-outline-secondary" type="button" @onclick="() => UpdateQuantity(item.ProductId, item.Quantity + 1)" disabled="@(item.Quantity >= 1000 || _isUpdatingCart)">+</button>
+                                            <div class="input-group input-group-sm cart-quantity">
+                                                <button class="btn btn-outline-secondary" type="button" @onclick="() => UpdateQuantity(item.ProductId, item.Quantity - 1)" disabled="@(item.Quantity <= 1 || _isUpdatingCart || _isCheckingOut)">-</button>
+                                                <input type="number" min="1" max="1000" class="form-control text-center px-1" aria-label="@($"Количество товара {item.ProductName}")" value="@item.Quantity" @onchange="(e) => HandleQuantityInput(item.ProductId, e)" disabled="@(_isUpdatingCart || _isCheckingOut)" />
+                                                <button class="btn btn-outline-secondary" type="button" @onclick="() => UpdateQuantity(item.ProductId, item.Quantity + 1)" disabled="@(item.Quantity >= 1000 || _isUpdatingCart || _isCheckingOut)">+</button>
                                             </div>
                                         </td>
                                         <td>
                                             @if (item.LineTotal.HasValue)
                                             {
-                                                <strong class="text-primary text-nowrap">@item.LineTotal.Value.ToString("F2") ₽</strong>
+                                                <strong class="text-primary text-nowrap">@MoneyDisplay.Format(item.LineTotal.Value)</strong>
                                             }
                                             else
                                             {
@@ -144,7 +148,7 @@
                                             }
                                         </td>
                                         <td class="text-end">
-                                            <button class="btn btn-outline-danger btn-sm border-0" title="Удалить из корзины" @onclick="() => RemoveItem(item.ProductId)" disabled="@_isUpdatingCart">
+                                            <button type="button" class="btn btn-outline-danger btn-sm border-0" title="Удалить из корзины" aria-label="Удалить из корзины" @onclick="() => RemoveItem(item.ProductId)" disabled="@(_isUpdatingCart || _isCheckingOut)">
                                                 ✕
                                             </button>
                                         </td>
@@ -155,8 +159,8 @@
                     </div>
                 </div>
 
-                <div class="d-flex justify-content-between align-items-center">
-                    <button class="btn btn-outline-danger btn-sm" @onclick="ClearCart" disabled="@(_isUpdatingCart || _isCheckingOut)">
+                <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                    <button type="button" class="btn btn-outline-danger btn-sm" @onclick="ClearCart" disabled="@(_isUpdatingCart || _isCheckingOut)">
                         Очистить корзину
                     </button>
                     <span class="text-muted small">Всего позиций: @_items.Count (товаров: @_items.Sum(i => i.Quantity))</span>
@@ -165,8 +169,8 @@
 
             <!-- Итоги и Оформление -->
             <div class="col-lg-4">
-                <div class="card border-0 shadow-sm p-4 bg-light">
-                    <h5 class="fw-bold mb-3">Итог заказа</h5>
+                <div class="card border-0 shadow-sm p-4 cart-summary">
+                    <h2 class="h5 fw-bold mb-3">Итог заказа</h2>
 
                     @if (_items.Any(i => !i.IsAvailable))
                     {
@@ -175,28 +179,28 @@
                         </div>
                     }
 
-                    <div class="d-flex justify-content-between mb-2">
+                    <div class="d-flex flex-wrap gap-2 justify-content-between mb-2">
                         <span class="text-muted">Предварительная сумма:</span>
-                        <span class="fw-semibold">@_previewTotal.ToString("F2") ₽</span>
+                        <span class="fw-semibold">@MoneyDisplay.Format(_previewTotal)</span>
                     </div>
 
-                    <div class="d-flex justify-content-between mb-3">
+                    <div class="d-flex flex-wrap gap-2 justify-content-between mb-3">
                         <span class="text-muted">Доставка:</span>
                         <span class="text-success fw-semibold">Бесплатно</span>
                     </div>
 
                     <hr class="my-2" />
 
-                    <div class="d-flex justify-content-between align-items-baseline my-3">
+                    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-baseline my-3">
                         <span class="fs-5 fw-bold text-dark">К оплате:</span>
-                        <span class="fs-4 fw-bold text-primary">@_previewTotal.ToString("F2") ₽</span>
+                        <span class="fs-4 fw-bold text-primary money">@MoneyDisplay.Format(_previewTotal)</span>
                     </div>
 
                     <div class="text-muted small mb-3">
                         <small>* Итоговая цена фиксируется сервисом заказа в момент подтверждения резервации.</small>
                     </div>
 
-                    <button class="btn btn-primary btn-lg w-100 py-2 fw-semibold" @onclick="HandleCheckout" disabled="@(!CanCheckout || _isCheckingOut)">
+                    <button type="button" class="btn btn-primary btn-lg w-100 py-2 fw-semibold" @onclick="HandleCheckout" disabled="@(!CanCheckout || _isCheckingOut || _isUpdatingCart)">
                         @if (_isCheckingOut)
                         {
                             <span class="spinner-border spinner-border-sm me-2" role="status"></span>
@@ -216,6 +220,7 @@
 @code {
     private List<CartItemViewModel> _items = [];
     private decimal _previewTotal = 0m;
+    private bool _loadFailed;
     private bool _isLoading = true;
     private bool _isUpdatingCart = false;
     private bool _isCheckingOut = false;
@@ -230,65 +235,91 @@
         await LoadCartAsync();
     }
 
-    private async Task LoadCartAsync()
+    private async Task LoadCartAsync(bool clearError = true, bool showLoading = true)
     {
-        _isLoading = true;
-        _errorMessage = null;
+        if (showLoading)
+        {
+            _isLoading = true;
+        }
+
+        if (clearError)
+        {
+            _errorMessage = null;
+        }
+
         StateHasChanged();
 
-        var cart = await CartClient.GetCartAsync();
-        if (cart == null || cart.Items.Count == 0)
+        _loadFailed = false;
+        try
         {
-            _items = [];
-            _previewTotal = 0m;
-            _isLoading = false;
+            var cart = await CartClient.GetCartAsync();
+            if (cart == null || cart.Items.Count == 0)
+            {
+                _items = [];
+                _previewTotal = 0m;
+                return;
+            }
+
+            // Product enrichment: retrieve product details via CatalogApiClient
+            var uniqueProductIds = cart.Items.Select(i => i.ProductId).Distinct().ToList();
+            var productTasks = uniqueProductIds.Select(id => CatalogClient.GetProductByIdAsync(id));
+            var loadedProducts = await Task.WhenAll(productTasks);
+            var productMap = loadedProducts.Where(p => p != null).ToDictionary(p => p!.Id, p => p!);
+
+            var enrichedList = new List<CartItemViewModel>();
+            foreach (var cartItem in cart.Items)
+            {
+                if (productMap.TryGetValue(cartItem.ProductId, out var catalogProd) && catalogProd != null)
+                {
+                    enrichedList.Add(new CartItemViewModel
+                    {
+                        ProductId = cartItem.ProductId,
+                        Quantity = cartItem.Quantity,
+                        ProductName = catalogProd.Name,
+                        UnitPrice = catalogProd.Price,
+                        ImagePath = catalogProd.ImagePath,
+                        IsAvailable = true
+                    });
+                }
+                else
+                {
+                    enrichedList.Add(new CartItemViewModel
+                    {
+                        ProductId = cartItem.ProductId,
+                        Quantity = cartItem.Quantity,
+                        ProductName = "Товар недоступен",
+                        UnitPrice = null,
+                        ImagePath = null,
+                        IsAvailable = false
+                    });
+                }
+            }
+
+            _items = enrichedList;
+            _previewTotal = CartTotalHelper.CalculatePreviewTotal(_items);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Cart] LoadCartAsync error: {ex.Message}");
+            _loadFailed = true;
+            if (clearError)
+            {
+                _errorMessage = "Не удалось загрузить корзину.";
+            }
+        }
+        finally
+        {
+            if (showLoading)
+            {
+                _isLoading = false;
+            }
             StateHasChanged();
-            return;
         }
-
-        // Product enrichment: retrieve product details via CatalogApiClient
-        var uniqueProductIds = cart.Items.Select(i => i.ProductId).Distinct().ToList();
-        var productTasks = uniqueProductIds.Select(id => CatalogClient.GetProductByIdAsync(id));
-        var loadedProducts = await Task.WhenAll(productTasks);
-        var productMap = loadedProducts.Where(p => p != null).ToDictionary(p => p!.Id, p => p!);
-
-        var enrichedList = new List<CartItemViewModel>();
-        foreach (var cartItem in cart.Items)
-        {
-            if (productMap.TryGetValue(cartItem.ProductId, out var catalogProd) && catalogProd != null)
-            {
-                enrichedList.Add(new CartItemViewModel
-                {
-                    ProductId = cartItem.ProductId,
-                    Quantity = cartItem.Quantity,
-                    ProductName = catalogProd.Name,
-                    UnitPrice = catalogProd.Price,
-                    ImagePath = catalogProd.ImagePath,
-                    IsAvailable = true
-                });
-            }
-            else
-            {
-                enrichedList.Add(new CartItemViewModel
-                {
-                    ProductId = cartItem.ProductId,
-                    Quantity = cartItem.Quantity,
-                    ProductName = "Товар недоступен",
-                    UnitPrice = null,
-                    ImagePath = null,
-                    IsAvailable = false
-                });
-            }
-        }
-
-        _items = enrichedList;
-        _previewTotal = CartTotalHelper.CalculatePreviewTotal(_items);
-        _isLoading = false;
-        StateHasChanged();
     }
 
     private async Task UpdateQuantity(Guid productId, int newQuantity)
     {
+        if (_isUpdatingCart || _isCheckingOut) return;
         if (newQuantity < 1)
         {
             await RemoveItem(productId);
@@ -334,6 +365,7 @@
 
     private async Task RemoveItem(Guid productId)
     {
+        if (_isUpdatingCart || _isCheckingOut) return;
         _isUpdatingCart = true;
         _errorMessage = null;
         StateHasChanged();
@@ -354,6 +386,7 @@
 
     private async Task ClearCart()
     {
+        if (_isUpdatingCart || _isCheckingOut) return;
         var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Вы действительно хотите полностью очистить корзину?");
         if (!confirmed)
             return;
@@ -380,49 +413,53 @@
 
     private async Task HandleCheckout()
     {
-        if (!CanCheckout || _isCheckingOut)
+        if ((!CanCheckout && !_canRetryCheckout) || _isCheckingOut || _isUpdatingCart)
             return;
 
         _isCheckingOut = true;
         _errorMessage = null;
-        _canRetryCheckout = false;
         StateHasChanged();
 
-        // 1. Get or create idempotent pending RequestId
-        var pendingId = await RequestIdStorage.GetPendingRequestIdAsync();
-        if (!pendingId.HasValue)
+        try
         {
-            pendingId = Guid.NewGuid();
-            await RequestIdStorage.SetPendingRequestIdAsync(pendingId.Value);
-        }
+            // A persisted order can have cleared the cart before its response was lost.
+            // Retry that same request; an empty cart must never create a new request.
+            var pendingId = await RequestIdStorage.GetPendingRequestIdAsync();
+            if (!CheckoutUiHelper.CanSubmitCheckout(CanCheckout, _canRetryCheckout, pendingId))
+            {
+                _errorMessage = "Не удалось восстановить оформление. Проверьте список заказов и обновите корзину.";
+                _canRetryCheckout = false;
+                return;
+            }
 
-        var result = await OrderClient.CheckoutAsync(pendingId.Value);
-        _isCheckingOut = false;
-
-        if (result.Succeeded && result.Value != null)
-        {
-            // Success: clear pending RequestId
-            await RequestIdStorage.ClearPendingRequestIdAsync();
-            Navigation.NavigateTo($"/orders/{result.Value.Id}");
-            return;
-        }
-
-        // Failure handling
-        _errorMessage = result.ErrorMessage ?? "Произошла ошибка при оформлении заказа.";
-
-        if (CheckoutIdempotencyHelper.ShouldClearRequestIdOnFailure(result.StatusCode, result.ErrorCode))
-        {
-            // Deterministic failure: clear pending RequestId
-            await RequestIdStorage.ClearPendingRequestIdAsync();
             _canRetryCheckout = false;
-        }
-        else
-        {
-            // Uncertain downstream / network failure: PRESERVE RequestId for retry
-            _canRetryCheckout = true;
-        }
+            if (!pendingId.HasValue)
+            {
+                pendingId = Guid.NewGuid();
+                await RequestIdStorage.SetPendingRequestIdAsync(pendingId.Value);
+            }
 
-        // Refresh cart in case of partial modifications
-        await LoadCartAsync();
+            var result = await OrderClient.CheckoutAsync(pendingId.Value);
+
+            if (result.Succeeded && result.Value != null)
+            {
+                await RequestIdStorage.ClearPendingRequestIdAsync();
+                Navigation.NavigateTo($"/orders/{result.Value.Id}");
+                return;
+            }
+
+            var failureState = CheckoutUiHelper.ProcessCheckoutFailure(result.StatusCode, result.ErrorCode, result.ErrorMessage);
+            _errorMessage = failureState.ErrorMessage;
+            _canRetryCheckout = failureState.CanRetry;
+
+            if (failureState.ShouldClearRequestId)
+                await RequestIdStorage.ClearPendingRequestIdAsync();
+
+            await LoadCartAsync(clearError: false, showLoading: false);
+        }
+        finally
+        {
+            _isCheckingOut = false;
+        }
     }
 }

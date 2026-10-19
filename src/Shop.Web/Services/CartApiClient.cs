@@ -28,28 +28,14 @@ public class CartApiClient : ICartApiClient
 
     public async Task<CartDto?> GetCartAsync(CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var response = await _httpClient.GetAsync("/api/cart", cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                return await response.Content.ReadFromJsonAsync<CartDto>(cancellationToken: cancellationToken);
-            }
-
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[CartApiClient] GetCartAsync error: {ex.Message}");
-            return null;
-        }
+        return await ApiReadHelper.GetAsync<CartDto>(_httpClient, $"/api/cart", cancellationToken);
     }
 
     public async Task<CartOperationResult> AddItemAsync(Guid productId, int quantity = 1, CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
+            using var response = await _httpClient.PostAsJsonAsync("/api/cart/items", new AddCartItemRequest
             {
                 ProductId = productId,
                 Quantity = quantity
@@ -64,9 +50,9 @@ public class CartApiClient : ICartApiClient
             var (errorMsg, errorCode) = await ParseProblemDetailsAsync(response);
             return new CartOperationResult(false, null, errorMsg, errorCode);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return new CartOperationResult(false, null, $"Ошибка сети: {ex.Message}");
+            return new CartOperationResult(false, null, "Ошибка сети. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -74,7 +60,7 @@ public class CartApiClient : ICartApiClient
     {
         try
         {
-            var response = await _httpClient.PutAsJsonAsync($"/api/cart/items/{productId}", new UpdateCartItemRequest
+            using var response = await _httpClient.PutAsJsonAsync($"/api/cart/items/{productId}", new UpdateCartItemRequest
             {
                 Quantity = quantity
             }, cancellationToken);
@@ -88,9 +74,9 @@ public class CartApiClient : ICartApiClient
             var (errorMsg, errorCode) = await ParseProblemDetailsAsync(response);
             return new CartOperationResult(false, null, errorMsg, errorCode);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return new CartOperationResult(false, null, $"Ошибка сети: {ex.Message}");
+            return new CartOperationResult(false, null, "Ошибка сети. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -98,7 +84,7 @@ public class CartApiClient : ICartApiClient
     {
         try
         {
-            var response = await _httpClient.DeleteAsync($"/api/cart/items/{productId}", cancellationToken);
+            using var response = await _httpClient.DeleteAsync($"/api/cart/items/{productId}", cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 return new CartOperationResult(true);
@@ -107,9 +93,9 @@ public class CartApiClient : ICartApiClient
             var (errorMsg, errorCode) = await ParseProblemDetailsAsync(response);
             return new CartOperationResult(false, null, errorMsg, errorCode);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return new CartOperationResult(false, null, $"Ошибка сети: {ex.Message}");
+            return new CartOperationResult(false, null, "Ошибка сети. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -117,7 +103,7 @@ public class CartApiClient : ICartApiClient
     {
         try
         {
-            var response = await _httpClient.DeleteAsync("/api/cart", cancellationToken);
+            using var response = await _httpClient.DeleteAsync("/api/cart", cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 return new CartOperationResult(true);
@@ -126,37 +112,14 @@ public class CartApiClient : ICartApiClient
             var (errorMsg, errorCode) = await ParseProblemDetailsAsync(response);
             return new CartOperationResult(false, null, errorMsg, errorCode);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return new CartOperationResult(false, null, $"Ошибка сети: {ex.Message}");
+            return new CartOperationResult(false, null, "Ошибка сети. Проверьте соединение и повторите попытку.");
         }
     }
 
     private static async Task<(string ErrorMessage, string? ErrorCode)> ParseProblemDetailsAsync(HttpResponseMessage response)
     {
-        try
-        {
-            var content = await response.Content.ReadAsStringAsync();
-            if (string.IsNullOrWhiteSpace(content))
-            {
-                return ($"Запрос завершился с кодом {(int)response.StatusCode}", null);
-            }
-
-            var problem = JsonSerializer.Deserialize<ProblemDetailsModel>(content, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-
-            if (problem != null)
-            {
-                return (problem.GetDisplayMessage(), problem.GetErrorCode());
-            }
-
-            return (content, null);
-        }
-        catch
-        {
-            return ($"Ошибка HTTP {(int)response.StatusCode} ({response.ReasonPhrase})", null);
-        }
+        return await ApiErrorReader.ReadAsync(response);
     }
 }

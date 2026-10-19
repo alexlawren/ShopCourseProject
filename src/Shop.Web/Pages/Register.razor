@@ -4,10 +4,10 @@
 
 <PageTitle>Регистрация - ShopCourseProject</PageTitle>
 
-<div class="row justify-content-center mt-5">
-    <div class="col-md-5 col-lg-4">
-        <div class="card shadow-sm border-0 p-4">
-            <h3 class="card-title text-center fw-bold mb-4">Регистрация</h3>
+<div class="auth-page">
+    <div class="auth-shell">
+        <div class="card shadow-sm border-0 auth-card">
+            <h1 class="h3 card-title text-center fw-bold mb-4">Регистрация</h1>
 
             @if (!string.IsNullOrWhiteSpace(_errorMessage))
             {
@@ -20,20 +20,21 @@
                 <DataAnnotationsValidator />
 
                 <div class="mb-3">
-                    <label for="regEmailInput" class="form-label">Email</label>
-                    <InputText id="regEmailInput" class="form-control" @bind-Value="_registerModel.Email" placeholder="name@example.com" />
+                    <label for="regEmailInput" class="form-label">Электронная почта</label>
+                    <InputText id="regEmailInput" type="email" autocomplete="email" class="form-control" @bind-Value="_registerModel.Email" placeholder="name@example.com" />
                     <ValidationMessage For="@(() => _registerModel.Email)" class="text-danger small" />
                 </div>
 
                 <div class="mb-3">
                     <label for="regPasswordInput" class="form-label">Пароль</label>
-                    <InputText id="regPasswordInput" type="password" class="form-control" @bind-Value="_registerModel.Password" placeholder="Минимум 6 символов" />
+                    <InputText id="regPasswordInput" type="password" autocomplete="new-password" class="form-control" @bind-Value="_registerModel.Password" placeholder="Минимум 8 символов" aria-describedby="passwordHelp" />
+                    <div id="passwordHelp" class="form-text">Минимум 8 символов, строчная и заглавная латинские буквы и цифра.</div>
                     <ValidationMessage For="@(() => _registerModel.Password)" class="text-danger small" />
                 </div>
 
                 <div class="mb-4">
                     <label for="regConfirmPasswordInput" class="form-label">Подтверждение пароля</label>
-                    <InputText id="regConfirmPasswordInput" type="password" class="form-control" @bind-Value="_registerModel.ConfirmPassword" placeholder="Повторите пароль" />
+                    <InputText id="regConfirmPasswordInput" type="password" autocomplete="new-password" class="form-control" @bind-Value="_registerModel.ConfirmPassword" placeholder="Повторите пароль" />
                     <ValidationMessage For="@(() => _registerModel.ConfirmPassword)" class="text-danger small" />
                 </div>
 
@@ -65,6 +66,7 @@
 
     private async Task HandleRegister()
     {
+        if (_isLoading) return;
         _errorMessage = null;
         _isLoading = true;
 
@@ -80,9 +82,9 @@
                 _errorMessage = result.ErrorMessage ?? "Ошибка при регистрации. Проверьте введённые данные.";
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _errorMessage = $"Ошибка соединения с сервером: {ex.Message}";
+            _errorMessage = "Ошибка соединения с сервером. Повторите попытку.";
         }
         finally
         {

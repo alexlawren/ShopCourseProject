@@ -8,23 +8,13 @@
 <PageTitle>Управление заказами — Администратор</PageTitle>
 
 <div class="container my-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
         <div>
             <h1 class="h3 mb-0">Все заказы покупателей</h1>
-            <small class="text-muted">Просмотр, фулфилмент и жизненный цикл заказов</small>
+            <small class="text-muted">Просмотр и управление обработкой заказов</small>
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-light text-dark border">
-                OrderHub Realtime:
-                @if (OrderRealtimeService.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected)
-                {
-                    <span class="text-success fw-bold">● Подключено (admins)</span>
-                }
-                else
-                {
-                    <span class="text-muted">Подключение...</span>
-                }
-            </span>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <RealtimeStatus Label="Заказы" GetState="() => OrderRealtimeService.State" />
             <a href="admin" class="btn btn-outline-secondary btn-sm">В панель</a>
         </div>
     </div>
@@ -33,7 +23,7 @@
     {
         <div class="alert @(_statusIsError ? "alert-danger" : "alert-success") alert-dismissible fade show py-2 mb-3" role="alert">
             @_statusMessage
-            <button type="button" class="btn-close" @onclick="() => _statusMessage = null"></button>
+            <button type="button" aria-label="Закрыть" class="btn-close" @onclick="() => _statusMessage = null"></button>
         </div>
     }
 
@@ -41,31 +31,31 @@
     <div class="card border-0 shadow-sm p-3 mb-4 bg-light">
         <div class="row g-3 align-items-end">
             <div class="col-md-4">
-                <label class="form-label small fw-semibold">Статус заказа</label>
-                <select class="form-select form-select-sm" @bind="_filterStatus" @bind:after="ApplyFilters">
+                <label for="orderStatusFilter" class="form-label fw-semibold">Статус заказа</label>
+                <select id="orderStatusFilter" class="form-select" @bind="_filterStatus" @bind:after="ApplyFilters">
                     <option value="">Все статусы</option>
-                    <option value="Created">Создан (Created)</option>
-                    <option value="Confirmed">Подтверждён (Confirmed)</option>
-                    <option value="Processing">В обработке (Processing)</option>
-                    <option value="Shipped">Отправлен (Shipped)</option>
-                    <option value="Completed">Выполнен (Completed)</option>
-                    <option value="Cancelled">Отменён (Cancelled)</option>
+                    <option value="Created">Создан</option>
+                    <option value="Confirmed">Подтверждён</option>
+                    <option value="Processing">В обработке</option>
+                    <option value="Shipped">Отправлен</option>
+                    <option value="Completed">Выполнен</option>
+                    <option value="Cancelled">Отменён</option>
                 </select>
             </div>
             <div class="col-md-4">
-                <label class="form-label small fw-semibold">Статус оплаты</label>
-                <select class="form-select form-select-sm" @bind="_filterPaymentStatus" @bind:after="ApplyFilters">
+                <label for="paymentStatusFilter" class="form-label fw-semibold">Статус оплаты</label>
+                <select id="paymentStatusFilter" class="form-select" @bind="_filterPaymentStatus" @bind:after="ApplyFilters">
                     <option value="">Все статусы оплаты</option>
-                    <option value="Pending">Ожидает оплаты (Pending)</option>
-                    <option value="Paid">Оплачен (Paid)</option>
-                    <option value="Cancelled">Отменён (Cancelled)</option>
+                    <option value="Pending">Ожидает оплаты</option>
+                    <option value="Paid">Оплачен</option>
+                    <option value="Cancelled">Отменён</option>
                 </select>
             </div>
-            <div class="col-md-4 d-flex gap-2">
-                <button class="btn btn-outline-primary btn-sm flex-grow-1" @onclick="ApplyFilters">
+            <div class="col-md-4 d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-primary flex-grow-1" @onclick="ApplyFilters">
                     Применить
                 </button>
-                <button class="btn btn-outline-secondary btn-sm" @onclick="ResetFilters">
+                <button type="button" class="btn btn-outline-secondary" @onclick="ResetFilters">
                     Сбросить
                 </button>
             </div>
@@ -79,6 +69,10 @@
             <div class="small text-muted mt-2">Загрузка заказов...</div>
         </div>
     }
+    else if (_loadFailed)
+    {
+        <button type="button" class="btn btn-outline-primary" @onclick="() => LoadOrdersAsync(_currentPage)">Повторить загрузку</button>
+    }
     else if (_ordersResult == null || _ordersResult.Items.Count == 0)
     {
         <div class="alert alert-info text-center py-4">
@@ -87,17 +81,17 @@
     }
     else
     {
-        <div class="table-responsive bg-white rounded shadow-sm border">
-            <table class="table table-hover align-middle mb-0">
+        <div class="table-responsive bg-white rounded shadow-sm border" tabindex="0" role="region" aria-label="Таблица, доступна горизонтальная прокрутка">
+            <table class="table table-hover align-middle mb-0 admin-orders-table">
                 <thead class="table-light">
                     <tr>
-                        <th>ID Заказа</th>
-                        <th>ID Покупателя (UserId)</th>
-                        <th>Дата создания</th>
-                        <th>Статус</th>
-                        <th>Оплата</th>
-                        <th>Сумма</th>
-                        <th class="text-end">Действие</th>
+                        <th scope="col">Заказ</th>
+                        <th scope="col">Покупатель</th>
+                        <th scope="col">Дата</th>
+                        <th scope="col">Статус</th>
+                        <th scope="col">Оплата</th>
+                        <th scope="col" class="text-end">Сумма</th>
+                        <th scope="col" class="text-end">Действие</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -106,15 +100,15 @@
                         <tr>
                             <td>
                                 <span class="fw-semibold font-monospace" title="@order.Id">
-                                    #@order.Id.ToString()[..8]...
+                                    #@order.Id.ToString()[..8]…
                                 </span>
                             </td>
                             <td>
-                                <span class="text-muted font-monospace small" title="@order.UserId">
-                                    @order.UserId.ToString()[..8]...
+                                <span class="text-muted font-monospace" title="@order.UserId">
+                                    @order.UserId.ToString()[..8]…
                                 </span>
                             </td>
-                            <td class="text-muted small">
+                            <td class="text-muted text-nowrap">
                                 @order.CreatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
                             </td>
                             <td>
@@ -127,8 +121,8 @@
                                     @AdminOrderUiHelper.GetPaymentStatusDisplayName(order.PaymentStatus)
                                 </span>
                             </td>
-                            <td class="fw-bold">
-                                @order.TotalAmount.ToString("F2") ₽
+                            <td class="fw-bold text-nowrap text-end">
+                                @MoneyDisplay.Format(order.TotalAmount)
                             </td>
                             <td class="text-end">
                                 <a href="admin/orders/@order.Id" class="btn btn-outline-primary btn-sm">
@@ -144,16 +138,16 @@
         <!-- Пагинация -->
         @if (_ordersResult.TotalPages > 1)
         {
-            <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mt-3">
                 <span class="text-muted small">
                     Страница @_ordersResult.Page из @_ordersResult.TotalPages (всего @_ordersResult.TotalCount заказов)
                 </span>
                 <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-secondary" disabled="@(_ordersResult.Page <= 1)"
+                    <button type="button" class="btn btn-outline-secondary" disabled="@(_ordersResult.Page <= 1)"
                             @onclick="() => LoadOrdersPage(_ordersResult.Page - 1)">
                         &larr; Назад
                     </button>
-                    <button class="btn btn-outline-secondary" disabled="@(_ordersResult.Page >= _ordersResult.TotalPages)"
+                    <button type="button" class="btn btn-outline-secondary" disabled="@(_ordersResult.Page >= _ordersResult.TotalPages)"
                             @onclick="() => LoadOrdersPage(_ordersResult.Page + 1)">
                         Вперёд &rarr;
                     </button>
@@ -165,6 +159,7 @@
 
 @code {
     private PagedResult<AdminOrderListItemDto>? _ordersResult;
+    private bool _loadFailed;
     private bool _isLoading = true;
     private string? _filterStatus;
     private string? _filterPaymentStatus;
@@ -189,6 +184,8 @@
     private async Task LoadOrdersAsync(int page = 1)
     {
         _isLoading = true;
+        _loadFailed = false;
+        _statusMessage = null;
         _currentPage = page;
         try
         {
@@ -198,9 +195,10 @@
                 status: _filterStatus,
                 paymentStatus: _filterPaymentStatus);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _statusMessage = $"Ошибка загрузки заказов: {ex.Message}";
+            _loadFailed = true;
+            _statusMessage = "Ошибка загрузки заказов. Повторите попытку.";
             _statusIsError = true;
         }
         finally

@@ -1,0 +1,7 @@
+
+.home-hero { padding: clamp(1.75rem, 4vw, 3.5rem); border: 1px solid #e1e9f3; border-radius: 1rem; background: linear-gradient(120deg, #edf3fc, #f8f9fc); }
+.hero-content { max-width: 1080px; }
+.home-hero h1 { font-size: clamp(2rem, 2.7vw, 2.375rem); max-width: 25ch; letter-spacing: -.035em; }
+.hero-description { max-width: 70ch; font-size: 1.125rem; line-height: 1.7; }
+.card-title { font-size: 1.4rem; }
+@media (max-width: 767.98px) { .hero-description { font-size: 1rem; } }

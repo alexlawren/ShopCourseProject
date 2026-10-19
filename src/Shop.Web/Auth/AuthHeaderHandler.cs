@@ -22,7 +22,8 @@ public class AuthHeaderHandler : DelegatingHandler
         var path = request.RequestUri?.AbsolutePath ?? string.Empty;
         var isAuthEndpoint = path.StartsWith("/api/auth/login", StringComparison.OrdinalIgnoreCase) ||
                              path.StartsWith("/api/auth/register", StringComparison.OrdinalIgnoreCase) ||
-                             path.StartsWith("/api/auth/refresh", StringComparison.OrdinalIgnoreCase);
+                             path.StartsWith("/api/auth/refresh", StringComparison.OrdinalIgnoreCase) ||
+                             path.StartsWith("/api/auth/logout", StringComparison.OrdinalIgnoreCase);
 
         if (!isAuthEndpoint)
         {
@@ -69,6 +70,7 @@ public class AuthHeaderHandler : DelegatingHandler
                         }
                     }
                     retryRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", newToken);
+                    response.Dispose();
                     return await base.SendAsync(retryRequest, cancellationToken);
                 }
             }

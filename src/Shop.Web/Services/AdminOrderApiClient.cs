@@ -35,64 +35,36 @@ public class AdminOrderApiClient : IAdminOrderApiClient
         string? paymentStatus = null,
         CancellationToken cancellationToken = default)
     {
-        try
+        var queryParams = new List<string>
         {
-            var queryParams = new List<string>
-            {
-                $"page={page}",
-                $"pageSize={pageSize}"
-            };
+            $"page={page}",
+            $"pageSize={pageSize}"
+        };
 
-            if (!string.IsNullOrWhiteSpace(status))
-            {
-                queryParams.Add($"status={Uri.EscapeDataString(status.Trim())}");
-            }
-
-            if (!string.IsNullOrWhiteSpace(paymentStatus))
-            {
-                queryParams.Add($"paymentStatus={Uri.EscapeDataString(paymentStatus.Trim())}");
-            }
-
-            var url = $"/api/admin/orders?{string.Join("&", queryParams)}";
-            var response = await _httpClient.GetAsync(url, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                return await response.Content.ReadFromJsonAsync<PagedResult<AdminOrderListItemDto>>(cancellationToken: cancellationToken);
-            }
-
-            return null;
-        }
-        catch (Exception ex)
+        if (!string.IsNullOrWhiteSpace(status))
         {
-            Console.WriteLine($"[AdminOrderApiClient] GetOrdersAsync error: {ex.Message}");
-            return null;
+            queryParams.Add($"status={Uri.EscapeDataString(status.Trim())}");
         }
+
+        if (!string.IsNullOrWhiteSpace(paymentStatus))
+        {
+            queryParams.Add($"paymentStatus={Uri.EscapeDataString(paymentStatus.Trim())}");
+        }
+
+        var url = $"/api/admin/orders?{string.Join("&", queryParams)}";
+        return await ApiReadHelper.GetAsync<PagedResult<AdminOrderListItemDto>>(_httpClient, url, cancellationToken);
     }
 
     public async Task<AdminOrderDetailsDto?> GetOrderAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var response = await _httpClient.GetAsync($"/api/admin/orders/{id}", cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                return await response.Content.ReadFromJsonAsync<AdminOrderDetailsDto>(cancellationToken: cancellationToken);
-            }
-
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[AdminOrderApiClient] GetOrderAsync error: {ex.Message}");
-            return null;
-        }
+        return await ApiReadHelper.GetAsync<AdminOrderDetailsDto>(_httpClient, $"/api/admin/orders/{id}", cancellationToken, allowNotFound: true);
     }
 
     public async Task<AdminOperationResult<AdminOrderDetailsDto>> UpdateStatusAsync(Guid id, string status, CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await _httpClient.PatchAsJsonAsync($"/api/admin/orders/{id}/status", new AdminUpdateOrderStatusRequest
+            using var response = await _httpClient.PatchAsJsonAsync($"/api/admin/orders/{id}/status", new AdminUpdateOrderStatusRequest
             {
                 Status = status
             }, cancellationToken);
@@ -106,9 +78,9 @@ public class AdminOrderApiClient : IAdminOrderApiClient
             var (error, code) = await ParseProblemDetailsAsync(response, cancellationToken);
             return AdminOperationResult<AdminOrderDetailsDto>.Failure(error, code);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return AdminOperationResult<AdminOrderDetailsDto>.Failure($"Ошибка при изменении статуса заказа: {ex.Message}");
+            return AdminOperationResult<AdminOrderDetailsDto>.Failure("Ошибка при изменении статуса заказа. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -116,7 +88,7 @@ public class AdminOrderApiClient : IAdminOrderApiClient
     {
         try
         {
-            var response = await _httpClient.PostAsync($"/api/admin/orders/{id}/cancel", null, cancellationToken);
+            using var response = await _httpClient.PostAsync($"/api/admin/orders/{id}/cancel", null, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
                 var order = await response.Content.ReadFromJsonAsync<AdminOrderDetailsDto>(cancellationToken: cancellationToken);
@@ -126,9 +98,9 @@ public class AdminOrderApiClient : IAdminOrderApiClient
             var (error, code) = await ParseProblemDetailsAsync(response, cancellationToken);
             return AdminOperationResult<AdminOrderDetailsDto>.Failure(error, code);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return AdminOperationResult<AdminOrderDetailsDto>.Failure($"Ошибка при отмене заказа администратором: {ex.Message}");
+            return AdminOperationResult<AdminOrderDetailsDto>.Failure("Ошибка при отмене заказа администратором. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -136,28 +108,6 @@ public class AdminOrderApiClient : IAdminOrderApiClient
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsModel>(cancellationToken: cancellationToken);
-            if (problem != null)
-            {
-                var message = problem.GetDisplayMessage();
-                var code = problem.GetErrorCode();
-                return (message, code);
-            }
-        }
-        catch
-        {
-            // fallback
-        }
-
-        return response.StatusCode switch
-        {
-            System.Net.HttpStatusCode.Unauthorized => ("Требуется авторизация администратора.", "UNAUTHORIZED"),
-            System.Net.HttpStatusCode.Forbidden => ("Доступ запрещён. Требуются права администратора.", "FORBIDDEN"),
-            System.Net.HttpStatusCode.NotFound => ("Заказ не найден.", "NOT_FOUND"),
-            System.Net.HttpStatusCode.Conflict => ("Конфликт при изменении заказа.", "CONFLICT"),
-            _ => ($"Ошибка сервера ({(int)response.StatusCode}).", response.StatusCode.ToString())
-        };
+        return await ApiErrorReader.ReadAsync(response, cancellationToken);
     }
 }

@@ -64,7 +64,7 @@ a, .btn-link {
 }
 
     .blazor-error-boundary::after {
-        content: "An error has occurred."
+        content: "Произошла ошибка приложения. Обновите страницу."
     }
 
 .loading-progress {
@@ -97,7 +97,7 @@ a, .btn-link {
 }
 
     .loading-progress-text:after {
-        content: var(--blazor-load-percentage-text, "Loading");
+        content: var(--blazor-load-percentage-text, "Загрузка");
     }
 
 code {
@@ -111,4 +111,81 @@ code {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
+}
+
+/* Shared appearance for existing Bootstrap components. */
+:root { --shop-border: #e3e8ef; --shop-radius: .85rem; }
+html, body { margin: 0; font-size: 16px; min-width: 0; }
+body { color: #243247; background: #f5f7fb; line-height: 1.55; }
+#app { min-height: 100vh; width: 100%; }
+h1, h2, h3, h4, h5, h6 { line-height: 1.25; overflow-wrap: anywhere; }
+.content h1.h3, .content h1.h4 { font-size: clamp(2.125rem, 2.5vw, 2.375rem); font-weight: 700; letter-spacing: -.035em; }
+.content h2.h5, .content h5:not(.card-title) { font-size: 1.5rem; font-weight: 650; }
+.content > .container { width: 100%; max-width: none; padding-left: 0; padding-right: 0; }
+.card, .card-body, .row > *, .d-flex > div { min-width: 0; }
+.card-body, .alert, .full-id, code { overflow-wrap: anywhere; }
+.content p { overflow-wrap: anywhere; }
+.content .card { border-radius: var(--shop-radius); }
+.content .card.border-0 { border: 1px solid var(--shop-border) !important; }
+.content .shadow-sm { box-shadow: 0 3px 14px #25385808 !important; }
+.card-header { padding: 1.1rem 1.4rem; }
+.card-header:first-child { border-radius: var(--shop-radius) var(--shop-radius) 0 0; }
+.alert { border-radius: .65rem; }
+.form-label { font-size: .95rem; font-weight: 600; margin-bottom: .5rem; }
+.form-control, .form-select { min-height: 44px; font-size: 1rem; border-color: #cdd5df; border-radius: .5rem; }
+textarea.form-control { min-height: 7rem; }
+.form-text, .validation-message { font-size: .875rem; }
+.validation-message { color: #b42318; }
+.form-check-label { font-size: .95rem; }
+.btn { min-height: 44px; font-size: 1rem; padding: .6rem 1rem; border-radius: .5rem; white-space: normal; }
+.btn-sm, .btn-group-sm > .btn { min-height: 40px; font-size: .95rem; padding: .5rem .8rem; }
+.btn-lg { font-size: 1.0625rem; }
+.btn:disabled, .btn.disabled { opacity: .45; cursor: default; box-shadow: none; }
+.btn-outline-secondary { color: #475467; border-color: #cdd5df; }
+.input-group-sm > .form-control, .input-group-sm > .btn { min-height: 40px; font-size: .95rem; }
+.input-group-sm > .btn { padding: .45rem .65rem; }
+:focus-visible { outline: 2px solid #1b6ec2; outline-offset: 3px; }
+.badge { padding: .4rem .65rem; border-radius: .45rem; font-size: .875rem; line-height: 1.3; white-space: normal; }
+.table .badge { white-space: nowrap; }
+.table-responsive { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--shop-radius); }
+.table-responsive > .table { min-width: 38rem; }
+.table > :not(caption) > * > * { padding: 1rem .95rem; }
+.table thead th { color: #475467; font-size: .9rem; font-weight: 600; white-space: nowrap; background: #f8fafc; }
+.table td { font-size: 1rem; vertical-align: middle; }
+.table td:first-child { max-width: 24rem; overflow-wrap: anywhere; }
+.table .btn { white-space: nowrap; }
+.table .btn-group { display: inline-flex; }
+.table .small { font-size: .9rem; }
+.money { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.table-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; }
+.full-id, .order-reference { font-size: .95rem; line-height: 1.5; color: #667085; overflow-wrap: anywhere; }
+.status-chip { display: inline-flex; align-items: center; gap: .45rem; max-width: 100%; min-height: 32px; padding: .4rem .7rem; border: 1px solid; border-radius: 999px; font-size: .85rem; line-height: 1.3; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.status-chip-neutral { color: #667085; background: #f8fafc; border-color: #e3e8ef; }
+.status-chip-connected { color: #16704a; background: #edf8f1; border-color: #d2eddd; }
+.status-chip-connecting { color: #92620c; background: #fff8e9; border-color: #f2e2b8; }
+.status-chip-disconnected { color: #a53f3f; background: #fff3f2; border-color: #f1dcd9; }
+.shop-modal { background-color: #111b2d80; }
+.shop-modal .modal-dialog { max-width: min(500px, calc(100% - 1rem)); }
+.shop-modal .modal-dialog.modal-lg { max-width: min(800px, calc(100% - 1rem)); }
+.shop-modal .modal-content { border: 0; border-radius: var(--shop-radius); }
+.shop-modal .modal-header, .shop-modal .modal-body, .shop-modal .modal-footer { padding: 1.25rem 1.5rem; }
+.shop-modal .modal-title { font-size: 1.4rem; font-weight: 650; }
+.shop-modal .modal-footer { gap: .5rem; flex-wrap: wrap; }
+.status-page { width: 100%; max-width: 640px; margin: 2rem auto; padding: 2.25rem; text-align: center; background: #fff; border: 1px solid var(--shop-border); border-radius: var(--shop-radius); }
+/* Keep this anchor out of flow and clipped until a keyboard user focuses it. */
+.skip-link { position: absolute; top: 0; left: 0; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; }
+.skip-link:focus { position: fixed; top: 1rem; left: 1rem; width: auto; max-width: calc(100% - 2rem); height: auto; padding: .8rem 1rem; margin: 0; overflow: visible; clip: auto; clip-path: none; white-space: normal; background: #fff; border: 1px solid #cdd5df; border-radius: .5rem; z-index: 2000; box-shadow: 0 4px 16px #111b2d20; }
+@media (max-width: 575.98px) {
+    .content h1.h3, .content h1.h4 { font-size: 1.75rem; }
+    .content h2.h5, .content h5:not(.card-title) { font-size: 1.3rem; }
+    .content .p-5 { padding: 1.5rem !important; }
+    .content .display-5 { font-size: 2rem; }
+    .content .display-6 { font-size: 1.8rem; }
+    .content .btn-lg { font-size: 1rem; }
+    .shop-modal .modal-dialog { margin: .5rem; }
+    .shop-modal .modal-header, .shop-modal .modal-body, .shop-modal .modal-footer { padding: 1rem; }
+    .shop-modal .modal-footer > .btn { flex: 1 1 auto; }
+    .auth-page { margin: .75rem auto; }
+    .status-page { padding: 1.5rem; }
 }

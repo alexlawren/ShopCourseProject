@@ -1,0 +1,7 @@
+
+.admin-orders-table { min-width: 54rem; width: 100%; }
+.admin-orders-table td, .admin-orders-table th { white-space: nowrap; }
+.admin-orders-table td { font-size: 1rem; }
+.admin-orders-table td:first-child, .admin-orders-table td:nth-child(2) { font-size: .95rem; }
+.admin-orders-table th:nth-last-child(2) { min-width: 8rem; }
+.admin-orders-table td:nth-last-child(2) { font-variant-numeric: tabular-nums; }

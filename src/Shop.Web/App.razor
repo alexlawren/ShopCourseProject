@@ -3,8 +3,9 @@
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized Context="routeContext">
-                    <div class="container my-5 text-center">
-                        <h2>Доступ ограничен</h2>
+                    <div class="status-page">
+                        <PageTitle>Доступ ограничен</PageTitle>
+                        <h1 class="h3">Доступ ограничен</h1>
                         <AuthorizeView Context="authContext">
                             <Authorized>
                                 <p class="text-danger">У вас нет прав администратора для просмотра этой страницы.</p>
@@ -23,8 +24,8 @@
         <NotFound>
             <PageTitle>Страница не найдена</PageTitle>
             <LayoutView Layout="@typeof(MainLayout)">
-                <div class="container my-5 text-center">
-                    <h2>Страница не найдена</h2>
+                <div class="status-page">
+                    <h1 class="h3">Страница не найдена</h1>
                     <p class="text-muted">Запрошенная страница не существует.</p>
                     <a href="/" class="btn btn-outline-primary">На главную</a>
                 </div>

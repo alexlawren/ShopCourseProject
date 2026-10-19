@@ -44,7 +44,7 @@ public class AuthService : IAuthService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/auth/register", new
+            using var response = await _httpClient.PostAsJsonAsync("/api/auth/register", new
             {
                 email = model.Email,
                 password = model.Password
@@ -64,9 +64,9 @@ public class AuthService : IAuthService
             var errorMsg = await ParseErrorMessageAsync(response);
             return new AuthResult(false, errorMsg);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return new AuthResult(false, $"Ошибка сети при регистрации: {ex.Message}");
+            return new AuthResult(false, "Ошибка сети при регистрации. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -74,7 +74,7 @@ public class AuthService : IAuthService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/auth/login", new
+            using var response = await _httpClient.PostAsJsonAsync("/api/auth/login", new
             {
                 email = model.Email,
                 password = model.Password
@@ -94,9 +94,9 @@ public class AuthService : IAuthService
             var errorMsg = await ParseErrorMessageAsync(response);
             return new AuthResult(false, errorMsg);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return new AuthResult(false, $"Ошибка сети при входе: {ex.Message}");
+            return new AuthResult(false, "Ошибка сети при входе. Проверьте соединение и повторите попытку.");
         }
     }
 
@@ -155,7 +155,7 @@ public class AuthService : IAuthService
                 return false;
             }
 
-            var response = await _httpClient.PostAsJsonAsync("/api/auth/refresh", new RefreshTokenRequestModel
+            using var response = await _httpClient.PostAsJsonAsync("/api/auth/refresh", new RefreshTokenRequestModel
             {
                 RefreshToken = refreshToken
             });
@@ -196,7 +196,7 @@ public class AuthService : IAuthService
             using var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/me");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-            var response = await _httpClient.SendAsync(request);
+            using var response = await _httpClient.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
                 return await response.Content.ReadFromJsonAsync<UserDtoModel>();
@@ -211,7 +211,7 @@ public class AuthService : IAuthService
                     using var retryRequest = new HttpRequestMessage(HttpMethod.Get, "/api/auth/me");
                     retryRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", newToken);
 
-                    var retryResponse = await _httpClient.SendAsync(retryRequest);
+                    using var retryResponse = await _httpClient.SendAsync(retryRequest);
                     if (retryResponse.IsSuccessStatusCode)
                     {
                         return await retryResponse.Content.ReadFromJsonAsync<UserDtoModel>();
@@ -238,29 +238,7 @@ public class AuthService : IAuthService
 
     private static async Task<string> ParseErrorMessageAsync(HttpResponseMessage response)
     {
-        try
-        {
-            var content = await response.Content.ReadAsStringAsync();
-            if (string.IsNullOrWhiteSpace(content))
-                return $"Запрос завершился с кодом {(int)response.StatusCode}";
-
-            var problem = JsonSerializer.Deserialize<ProblemDetailsModel>(content, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-
-            if (problem != null)
-            {
-                var msg = problem.GetDisplayMessage();
-                if (!string.IsNullOrWhiteSpace(msg))
-                    return msg;
-            }
-
-            return content;
-        }
-        catch
-        {
-            return $"Ошибка HTTP {(int)response.StatusCode} ({response.ReasonPhrase})";
-        }
+        var error = await ApiErrorReader.ReadAsync(response);
+        return error.ErrorMessage;
     }
 }

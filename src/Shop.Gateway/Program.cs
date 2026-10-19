@@ -30,6 +30,8 @@ if (hasStaticWebRoot)
     provider.Mappings[".br"] = "application/octet-stream";
     provider.Mappings[".gz"] = "application/octet-stream";
     provider.Mappings[".pdb"] = "application/octet-stream";
+    provider.Mappings[".dat"] = "application/octet-stream";
+    provider.Mappings[".blat"] = "application/octet-stream";
 
     app.UseDefaultFiles();
     app.UseStaticFiles(new StaticFileOptions

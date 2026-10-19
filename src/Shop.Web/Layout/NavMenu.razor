@@ -1,85 +1,60 @@
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand fw-bold" href="">ShopCourseProject</a>
-    </div>
+<div class="shop-brand navbar navbar-dark">
+    <a class="brand-link" href="/" @onclick="() => _menuOpen = false">
+        <span class="brand-mark" aria-hidden="true">
+            <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 7h14l1 14H4L5 7zM8 8V6a4 4 0 0 1 8 0v2" />
+            </svg>
+        </span>
+        <span><span class="brand-name">ShopCourseProject</span><span class="brand-caption">Интернет-магазин</span></span>
+    </a>
+    <button type="button" class="navbar-toggler" aria-label="Меню навигации"
+            aria-expanded="@_menuOpen.ToString().ToLowerInvariant()" aria-controls="shopNavigation"
+            @onclick="() => _menuOpen = !_menuOpen">
+        <span class="navbar-toggler-icon"></span>
+    </button>
 </div>
 
-<div class="nav-scrollable">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                Главная
-            </NavLink>
+<div id="shopNavigation" class="nav-scrollable @(_menuOpen ? "menu-open" : "")">
+    <nav class="nav-content" aria-label="Основная навигация" @onclick="() => _menuOpen = false">
+        <div class="nav-group">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All"><NavIcon Kind="home" /> Главная</NavLink>
+            <NavLink class="nav-link" href="catalog"><NavIcon Kind="catalog" /> Каталог</NavLink>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="catalog">
-                Каталог
-            </NavLink>
-        </div>
-
         <AuthorizeView>
             <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="cart">
-                        Корзина
-                    </NavLink>
+                <div class="nav-group">
+                    <NavLink class="nav-link" href="cart"><NavIcon Kind="cart" /> Корзина</NavLink>
+                    <NavLink class="nav-link" href="orders"><NavIcon Kind="orders" /> Мои заказы</NavLink>
                 </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="orders">
-                        Мои заказы
-                    </NavLink>
-                </div>
-
                 <AuthorizeView Roles="Admin" Context="adminContext">
-                    <div class="px-3 pt-2 text-uppercase text-light fw-bold" style="font-size: 0.75rem; letter-spacing: 0.05em; opacity: 0.7;">
-                        Администрирование
-                    </div>
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="admin" Match="NavLinkMatch.All">
-                            Панель
-                        </NavLink>
-                    </div>
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="admin/catalog">
-                            Каталог (Admin)
-                        </NavLink>
-                    </div>
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="admin/orders">
-                            Заказы (Admin)
-                        </NavLink>
+                    <div class="nav-group admin-group">
+                        <div class="nav-section">Администрирование</div>
+                        <NavLink class="nav-link" href="admin" Match="NavLinkMatch.All"><NavIcon Kind="admin" /> Панель</NavLink>
+                        <NavLink class="nav-link" href="admin/catalog"><NavIcon Kind="catalog" /> Каталог</NavLink>
+                        <NavLink class="nav-link" href="admin/orders"><NavIcon Kind="orders" /> Заказы</NavLink>
                     </div>
                 </AuthorizeView>
-                <div class="px-3 pt-3 text-muted border-top mt-2 small">
-                    <div class="text-white fw-semibold text-truncate">@context.User.Identity?.Name</div>
+                <div class="account-section">
+                    <div class="account-label">Ваш аккаунт</div>
+                    <div class="account-email" title="@context.User.Identity?.Name">@context.User.Identity?.Name</div>
                     @if (context.User.IsInRole("Admin"))
                     {
-                        <span class="badge bg-danger mt-1">Admin</span>
+                        <span class="account-role">Администратор</span>
                     }
                     else
                     {
-                        <span class="badge bg-secondary mt-1">Customer</span>
+                        <span class="account-role">Покупатель</span>
                     }
-                </div>
-                <div class="nav-item px-3 mt-2">
-                    <button class="btn btn-outline-light btn-sm w-100" @onclick="HandleLogout">
-                        Выйти
-                    </button>
+                    <button type="button" class="btn btn-outline-light w-100 mt-3" @onclick="HandleLogout">Выйти</button>
                 </div>
             </Authorized>
             <NotAuthorized>
-                <div class="nav-item px-3 mt-3 border-top pt-3">
-                    <NavLink class="nav-link" href="login">
-                        Вход
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="register">
-                        Регистрация
-                    </NavLink>
+                <div class="account-section">
+                    <NavLink class="nav-link" href="login"><NavIcon Kind="login" /> Вход</NavLink>
+                    <NavLink class="nav-link" href="register"><NavIcon Kind="register" /> Регистрация</NavLink>
                 </div>
             </NotAuthorized>
         </AuthorizeView>
@@ -87,6 +62,7 @@
 </div>
 
 @code {
+    private bool _menuOpen;
     private async Task HandleLogout()
     {
         await AuthService.LogoutAsync();

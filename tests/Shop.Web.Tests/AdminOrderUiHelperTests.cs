@@ -38,10 +38,10 @@ public class AdminOrderUiHelperTests
     }
 
     [Theory]
-    [InlineData("Created", "Подтвердить заказ (Confirmed)")]
-    [InlineData("Confirmed", "Перевести в обработку (Processing)")]
-    [InlineData("Processing", "Отправить заказ (Shipped)")]
-    [InlineData("Shipped", "Завершить заказ (Completed)")]
+    [InlineData("Created", "Подтвердить заказ")]
+    [InlineData("Confirmed", "Перевести в обработку")]
+    [InlineData("Processing", "Отправить заказ")]
+    [InlineData("Shipped", "Завершить заказ")]
     [InlineData("Completed", "")]
     [InlineData("Cancelled", "")]
     public void GetNextStatusActionName_ReturnsDescriptiveText(string status, string expectedText)

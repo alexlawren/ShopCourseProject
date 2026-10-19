@@ -85,53 +85,17 @@ public class CatalogApiClient : ICatalogApiClient
 
     public async Task<IReadOnlyList<CategoryDto>> GetCategoriesAsync(CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var result = await _httpClient.GetFromJsonAsync<IReadOnlyList<CategoryDto>>("/api/catalog/categories", cancellationToken);
-            return result ?? [];
-        }
-        catch
-        {
-            return [];
-        }
+        return await ApiReadHelper.GetAsync<IReadOnlyList<CategoryDto>>(_httpClient, "/api/catalog/categories", cancellationToken) ?? [];
     }
 
     public async Task<PagedResultDto<ProductListItemDto>> GetProductsAsync(CatalogQueryModel query, CancellationToken cancellationToken = default)
     {
-        var url = CatalogQueryBuilder.BuildQueryString(query);
-        try
-        {
-            var result = await _httpClient.GetFromJsonAsync<PagedResultDto<ProductListItemDto>>(url, cancellationToken);
-            return result ?? new PagedResultDto<ProductListItemDto>();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error fetching products: {ex.Message}");
-            return new PagedResultDto<ProductListItemDto>();
-        }
+        return await ApiReadHelper.GetAsync<PagedResultDto<ProductListItemDto>>(_httpClient, CatalogQueryBuilder.BuildQueryString(query), cancellationToken) ?? new();
     }
 
     public async Task<ProductDetailDto?> GetProductByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var response = await _httpClient.GetAsync($"/api/catalog/products/{id}", cancellationToken);
-            if (response.StatusCode == HttpStatusCode.NotFound)
-            {
-                return null;
-            }
-
-            if (response.IsSuccessStatusCode)
-            {
-                return await response.Content.ReadFromJsonAsync<ProductDetailDto>(cancellationToken: cancellationToken);
-            }
-
-            return null;
-        }
-        catch
-        {
-            return null;
-        }
+        return await ApiReadHelper.GetAsync<ProductDetailDto>(_httpClient, $"/api/catalog/products/{id}", cancellationToken, allowNotFound: true);
     }
 
     public string GetImageUrl(string? imagePath)

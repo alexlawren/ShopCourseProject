@@ -1,0 +1,28 @@
+@if (_failed)
+{
+    <div class="image-placeholder" role="img" aria-label="@($"Изображение товара {Alt} недоступно")">
+        <span>Нет фото</span>
+    </div>
+}
+else
+{
+    <img src="@Src" alt="@Alt" class="product-image @Class" style="@Style" loading="lazy" @onerror="() => _failed = true" />
+}
+
+@code {
+    [Parameter] public string? Src { get; set; }
+    [Parameter] public string Alt { get; set; } = "Товар";
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Style { get; set; }
+    private string? _lastSrc;
+    private bool _failed = true;
+
+    protected override void OnParametersSet()
+    {
+        if (Src != _lastSrc)
+        {
+            _lastSrc = Src;
+            _failed = string.IsNullOrWhiteSpace(Src);
+        }
+    }
+}

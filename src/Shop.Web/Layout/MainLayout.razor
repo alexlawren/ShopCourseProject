@@ -1,17 +1,22 @@
 @inherits LayoutComponentBase
 
 <div class="page">
+    <a class="skip-link visually-hidden-focusable" href="#main-content">Перейти к содержимому</a>
     <div class="sidebar">
         <NavMenu />
     </div>
 
     <main>
-        <div class="top-row px-4 d-flex justify-content-between align-items-center">
-            <span class="text-muted small">Интернет-магазин ShopCourseProject</span>
-            <span class="badge bg-success-subtle text-success border border-success-subtle">Gateway API Connected</span>
+        <div class="top-row">
+            <div class="header-inner">
+                <span class="header-caption">Интернет-магазин ShopCourseProject</span>
+                <span class="status-chip status-chip-neutral" title="Запросы приложения проходят через Gateway">
+                    <span class="status-dot" aria-hidden="true"></span> API · Gateway
+                </span>
+            </div>
         </div>
 
-        <article class="content px-4 py-3">
+        <article id="main-content" tabindex="-1" class="content">
             @Body
         </article>
     </main>

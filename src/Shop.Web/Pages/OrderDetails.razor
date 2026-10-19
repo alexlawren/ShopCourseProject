@@ -9,7 +9,7 @@
 
 <PageTitle>Детали заказа - ShopCourseProject</PageTitle>
 
-<div class="container py-4">
+<div class="container py-4 order-details-page">
     <div class="mb-3">
         <a href="/orders" class="text-decoration-none text-muted small">
             ← Вернуться к списку заказов
@@ -19,18 +19,18 @@
     @if (!string.IsNullOrWhiteSpace(_errorMessage))
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
                 <div>
                     <strong>Ошибка:</strong> @_errorMessage
                 </div>
                 @if (_canRetryCancellation)
                 {
-                    <button class="btn btn-danger btn-sm ms-3" @onclick="HandleCancel" disabled="@_isProcessing">
+                    <button type="button" class="btn btn-danger btn-sm ms-3" @onclick="HandleCancel" disabled="@_isProcessing">
                         Повторить отмену
                     </button>
                 }
             </div>
-            <button type="button" class="btn-close" @onclick="() => _errorMessage = null"></button>
+            <button type="button" aria-label="Закрыть" class="btn-close" @onclick="() => _errorMessage = null"></button>
         </div>
     }
 
@@ -38,7 +38,7 @@
     {
         <div class="alert alert-info alert-dismissible fade show" role="alert">
             @_infoMessage
-            <button type="button" class="btn-close" @onclick="() => _infoMessage = null"></button>
+            <button type="button" aria-label="Закрыть" class="btn-close" @onclick="() => _infoMessage = null"></button>
         </div>
     }
 
@@ -51,10 +51,14 @@
             <p class="text-muted mt-2">Загрузка деталей заказа...</p>
         </div>
     }
+    else if (_loadFailed)
+    {
+        <button type="button" class="btn btn-outline-primary" @onclick="LoadOrderDetailsAsync">Повторить загрузку</button>
+    }
     else if (_order == null)
     {
         <div class="card border-0 shadow-sm p-5 text-center bg-light">
-            <h3 class="text-danger fw-bold">Заказ не найден</h3>
+            <h1 class="h3 text-danger fw-bold">Заказ не найден</h1>
             <p class="text-muted">Запрошенный заказ не существует, либо принадлежит другому пользователю.</p>
             <div class="mt-3">
                 <a href="/orders" class="btn btn-primary">К моим заказам</a>
@@ -64,12 +68,13 @@
     else
     {
         <!-- Заголовок заказа -->
-        <div class="card border-0 shadow-sm p-4 mb-4 bg-light">
+        <div class="card border-0 shadow-sm p-4 mb-4 order-heading">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div>
-                    <h3 class="fw-bold mb-1">
+                    <h1 class="h3 fw-bold mb-1">
                         Заказ <span class="font-monospace text-primary">#@_order.Id.ToString()[..8]</span>
-                    </h3>
+                    </h1>
+                    <div class="order-reference mb-2">ID: @_order.Id</div>
                     <div class="text-muted small">
                         Оформлен: @_order.CreatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")
                         @if (_order.UpdatedAtUtc != _order.CreatedAtUtc)
@@ -79,7 +84,7 @@
                     </div>
                 </div>
 
-                <div class="d-flex gap-2 align-items-center">
+                <div class="d-flex flex-wrap gap-2 align-items-center">
                     <span class="@OrderUiHelper.GetStatusBadgeClass(_order.Status) fs-6 px-3 py-2">
                         @OrderUiHelper.GetStatusDisplayName(_order.Status)
                     </span>
@@ -95,9 +100,9 @@
             <div class="col-lg-8">
                 <div class="card border-0 shadow-sm overflow-hidden mb-4">
                     <div class="card-header bg-white py-3 border-0">
-                        <h5 class="fw-bold mb-0">Состав заказа</h5>
+                        <h2 class="h5 fw-bold mb-0">Состав заказа</h2>
                     </div>
-                    <div class="table-responsive">
+                    <div class="table-responsive" tabindex="0" role="region" aria-label="Таблица, доступна горизонтальная прокрутка">
                         <table class="table align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
@@ -116,7 +121,7 @@
                                             <div class="bg-light rounded d-flex align-items-center justify-content-center p-1" style="width: 50px; height: 50px;">
                                                 @if (_productImages.TryGetValue(item.ProductId, out var imgUrl) && !string.IsNullOrWhiteSpace(imgUrl))
                                                 {
-                                                    <img src="@imgUrl" class="img-fluid mh-100 rounded" alt="@item.ProductName" />
+                                                    <ProductImage Src="@imgUrl" Class="img-fluid mh-100 rounded" Alt="@item.ProductName"  />
                                                 }
                                                 else
                                                 {
@@ -132,13 +137,13 @@
                                             <div class="text-muted small">ID: @item.ProductId</div>
                                         </td>
                                         <td>
-                                            <span class="text-nowrap">@item.UnitPrice.ToString("F2") ₽</span>
+                                            <span class="text-nowrap">@MoneyDisplay.Format(item.UnitPrice)</span>
                                         </td>
                                         <td>
                                             <span>@item.Quantity шт.</span>
                                         </td>
                                         <td class="text-end">
-                                            <strong class="text-primary text-nowrap">@item.LineTotal.ToString("F2") ₽</strong>
+                                            <strong class="text-primary text-nowrap">@MoneyDisplay.Format(item.LineTotal)</strong>
                                         </td>
                                     </tr>
                                 }
@@ -147,7 +152,7 @@
                                 <tr>
                                     <td colspan="4" class="fw-bold text-end">Итого к оплате:</td>
                                     <td class="text-end">
-                                        <span class="fs-5 fw-bold text-primary text-nowrap">@_order.TotalAmount.ToString("F2") ₽</span>
+                                        <span class="fs-5 fw-bold text-primary text-nowrap">@MoneyDisplay.Format(_order.TotalAmount)</span>
                                     </td>
                                 </tr>
                             </tfoot>
@@ -157,7 +162,7 @@
 
                 <!-- История изменения статусов -->
                 <div class="card border-0 shadow-sm p-4">
-                    <h5 class="fw-bold mb-3">История изменения статуса</h5>
+                    <h2 class="h5 fw-bold mb-3">История изменения статуса</h2>
                     @if (_order.StatusHistory.Count == 0)
                     {
                         <p class="text-muted small mb-0">История статусов отсутствует.</p>
@@ -187,12 +192,12 @@
                 @if (_order.PaymentStatus == "Pending" && _order.Status != "Cancelled")
                 {
                     <div class="card border-0 shadow-sm p-4 mb-4 bg-light">
-                        <h5 class="fw-bold mb-2">Оплата заказа</h5>
+                        <h2 class="h5 fw-bold mb-2">Оплата заказа</h2>
                         <p class="text-muted small mb-3">
                             Заказ ожидает оплаты. Для перехода в статус «Подтверждён» выполните симуляцию оплаты.
                         </p>
 
-                        <button class="btn btn-success btn-lg w-100 py-2 fw-semibold mb-2" @onclick="HandlePay" disabled="@_isProcessing">
+                        <button type="button" class="btn btn-success btn-lg w-100 py-2 fw-semibold mb-2" @onclick="HandlePay" disabled="@_isProcessing">
                             @if (_isProcessing)
                             {
                                 <span class="spinner-border spinner-border-sm me-2" role="status"></span>
@@ -214,12 +219,12 @@
                 @if (OrderUiHelper.CanCancel(_order.Status))
                 {
                     <div class="card border-0 shadow-sm p-4 bg-light">
-                        <h5 class="fw-bold mb-2 text-danger">Отмена заказа</h5>
+                        <h2 class="h5 fw-bold mb-2 text-danger">Отмена заказа</h2>
                         <p class="text-muted small mb-3">
                             Вы можете отменить заказ, пока он не передан в доставку (статусы «Создан», «Подтверждён», «В обработке»).
                         </p>
 
-                        <button class="btn btn-outline-danger w-100 py-2 fw-semibold" @onclick="HandleCancel" disabled="@_isProcessing">
+                        <button type="button" class="btn btn-outline-danger w-100 py-2 fw-semibold" @onclick="HandleCancel" disabled="@_isProcessing">
                             @if (_isProcessing)
                             {
                                 <span class="spinner-border spinner-border-sm me-2" role="status"></span>
@@ -241,6 +246,7 @@
     [Parameter]
     public Guid Id { get; set; }
 
+    private bool _loadFailed;
     private OrderDetailsDto? _order;
     private Dictionary<Guid, string?> _productImages = new();
     private bool _isLoading = true;
@@ -255,8 +261,9 @@
         OrderRealtime.OnPaymentStatusChanged += HandlePaymentStatusChanged;
 
         await OrderRealtime.StartAsync();
-        await LoadOrderDetailsAsync();
     }
+
+    protected override Task OnParametersSetAsync() => LoadOrderDetailsAsync();
 
     private async Task LoadOrderDetailsAsync()
     {
@@ -264,8 +271,14 @@
         _errorMessage = null;
         StateHasChanged();
 
-        _order = await OrderClient.GetOrderAsync(Id);
-        _isLoading = false;
+        _loadFailed = false;
+        try { _order = await OrderClient.GetOrderAsync(Id); }
+        catch (Exception)
+        {
+            _loadFailed = true;
+            _errorMessage = "Не удалось загрузить заказ. Повторите попытку.";
+        }
+        finally { _isLoading = false; }
 
         if (_order != null)
         {

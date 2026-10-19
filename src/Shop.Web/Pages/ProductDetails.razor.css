@@ -1,0 +1,4 @@
+.product-purchase-actions .col-auto { max-width: 100%; }
+@media (max-width: 1199.98px) {
+    .product-purchase-actions > .col { flex-basis: 100%; }
+}
